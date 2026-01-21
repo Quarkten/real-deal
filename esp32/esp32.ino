@@ -17,20 +17,16 @@
 #include <HTTPClient.h>
 #include <UrlEncode.h>
 #include <Preferences.h>
+#include <WebServer.h>
+#include <ArduinoOTA.h>
 
+#define CAMERA_MODEL_AI_THINKER
+#include "esp_camera.h"
+#include "camera_pins.h"
 
-// #define CAMERA
-// Note: Camera is NOT supported on Adafruit ESP32 Feather (4MB Flash, WiFi + BT). Leave CAMERA undefined.
-
-
-#ifdef CAMERA
-#error "Camera is not supported on Adafruit ESP32 Feather (4MB Flash, WiFi + BT)."
-#endif
-
-
-// Pin assignments for Adafruit ESP32 Feather (4MB Flash, WiFi + BT)
-constexpr auto TIP = 26;   // GPIO1 (TX)
-constexpr auto RING = 25; // GPIO10
+// Pin assignments for AI-Thinker ESP32-CAM
+constexpr auto TIP = 12;
+constexpr auto RING = 13;
 constexpr auto MAXHDRLEN = 16;
 constexpr auto MAXDATALEN = 4096;
 constexpr auto MAXARGS = 5;
@@ -41,7 +37,9 @@ constexpr auto PASSWORD = 42069;
 
 CBL2 cbl;
 Preferences prefs;
+WebServer server(80);
 
+String g_server, g_user, g_pass, g_chat_name;
 
 // whether or not the user has entered the password
 bool unlocked = true;
@@ -76,6 +74,12 @@ void send();
 void launcher();
 void snap();
 void solve();
+void camera_init();
+void startAP();
+void handleRoot();
+void handleSave();
+void setupOTA();
+void loadSettings();
 void image_list();
 void fetch_image();
 void fetch_chats();
@@ -183,8 +187,15 @@ void setup() {
   prefs.putUInt("boots", reboots + 1);
   prefs.end();
 
+  loadSettings();
+  camera_init();
 
-// Camera setup is not supported on Adafruit ESP32 Feather (4MB Flash, WiFi + BT)
+  connect();
+  if (WiFi.status() != WL_CONNECTED) {
+    startAP();
+  } else {
+    setupOTA();
+  }
 
   strncpy(message, "default message", MAXSTRARGLEN);
   delay(100);
@@ -220,6 +231,8 @@ void loop() {
     }
   }
   cbl.eventLoopTick();
+  server.handleClient();
+  ArduinoOTA.handle();
 }
 
 int onReceived(uint8_t type, enum Endpoint model, int datalen) {
@@ -372,7 +385,7 @@ int makeRequest(String url, char* result, int resultLen, size_t* len) {
   WiFiClient client;
 #endif
   HTTPClient http;
-  http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+  http.setAuthorization(g_user.c_str(), g_pass.c_str());
 
   Serial.println(url);
   http.begin(client, url.c_str());
@@ -411,20 +424,31 @@ int makeRequest(String url, char* result, int resultLen, size_t* len) {
 }
 
 void connect() {
-  const char* ssid = WIFI_SSID;
-  const char* pass = WIFI_PASS;
+  prefs.begin("ccalc", true);
+  String ssid = prefs.getString("ssid", WIFI_SSID);
+  String pass = prefs.getString("pass", WIFI_PASS);
+  prefs.end();
+
   Serial.print("SSID: ");
   Serial.println(ssid);
-  Serial.print("PASS: ");
-  Serial.println("<hidden>");
-  WiFi.begin(ssid, pass);
-  while (WiFi.status() != WL_CONNECTED) {
-    if (WiFi.status() == WL_CONNECT_FAILED) {
-      setError("failed to connect");
-      return;
-    }
+  WiFi.begin(ssid.c_str(), pass.c_str());
+
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+    delay(500);
+    Serial.print(".");
   }
-  setSuccess("connected");
+  Serial.println();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("Connected to WiFi");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    setSuccess("connected");
+  } else {
+    Serial.println("Failed to connect to WiFi");
+    setError("failed to connect");
+  }
 }
 
 void disconnect() {
@@ -437,7 +461,7 @@ void gpt() {
   Serial.print("prompt: ");
   Serial.println(prompt);
 
-  auto url = String(SERVER) + String("/gpt/ask?question=") + urlEncode(String(prompt));
+  auto url = g_server + String("/gpt/ask?question=") + urlEncode(String(prompt));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXHTTPRESPONSELEN, &realsize)) {
@@ -474,18 +498,168 @@ void launcher() {
 }
 
 
+void camera_init() {
+  camera_config_t config;
+  config.ledc_channel = LEDC_CHANNEL_0;
+  config.ledc_timer = LEDC_TIMER_0;
+  config.pin_d0 = Y2_GPIO_NUM;
+  config.pin_d1 = Y3_GPIO_NUM;
+  config.pin_d2 = Y4_GPIO_NUM;
+  config.pin_d3 = Y5_GPIO_NUM;
+  config.pin_d4 = Y6_GPIO_NUM;
+  config.pin_d5 = Y7_GPIO_NUM;
+  config.pin_d6 = Y8_GPIO_NUM;
+  config.pin_d7 = Y9_GPIO_NUM;
+  config.pin_xclk = XCLK_GPIO_NUM;
+  config.pin_pclk = PCLK_GPIO_NUM;
+  config.pin_vsync = VSYNC_GPIO_NUM;
+  config.pin_href = HREF_GPIO_NUM;
+  config.pin_sscb_sda = SIOD_GPIO_NUM;
+  config.pin_sscb_scl = SIOC_GPIO_NUM;
+  config.pin_pwdn = PWDN_GPIO_NUM;
+  config.pin_reset = RESET_GPIO_NUM;
+  config.xclk_freq_hz = 20000000;
+  config.pixel_format = PIXFORMAT_JPEG;
+
+  if (psramFound()) {
+    config.frame_size = FRAMESIZE_HD;
+    config.jpeg_quality = 10;
+    config.fb_count = 2;
+  } else {
+    config.frame_size = FRAMESIZE_SVGA;
+    config.jpeg_quality = 12;
+    config.fb_count = 1;
+  }
+
+  // camera init
+  esp_err_t err = esp_camera_init(&config);
+  if (err != ESP_OK) {
+    Serial.printf("Camera init failed with error 0x%x", err);
+    return;
+  }
+
+  if (!psramFound()) {
+    sensor_t* s = esp_camera_sensor_get();
+    s->set_framesize(s, FRAMESIZE_SVGA);
+  }
+}
+
 void snap() {
-  setError("pictures not supported on ESP32 Feather");
+  camera_fb_t* fb = NULL;
+  fb = esp_camera_fb_get();
+  if (!fb) {
+    setError("camera capture failed");
+    return;
+  }
+  esp_camera_fb_return(fb);
+  setSuccess("captured");
 }
 
 
 void solve() {
-  setError("pictures not supported on ESP32 Feather");
+  camera_fb_t* fb = NULL;
+  fb = esp_camera_fb_get();
+  if (!fb) {
+    setError("camera capture failed");
+    return;
+  }
+
+  auto url = g_server + String("/gpt/solve");
+
+#ifdef SECURE
+  WiFiClientSecure client;
+  client.setInsecure();
+#else
+  WiFiClient client;
+#endif
+  HTTPClient http;
+  http.setAuthorization(g_user.c_str(), g_pass.c_str());
+
+  Serial.println(url);
+  http.begin(client, url.c_str());
+  http.addHeader("Content-Type", "image/jpg");
+
+  int httpResponseCode = http.POST(fb->buf, fb->len);
+  esp_camera_fb_return(fb);
+
+  if (httpResponseCode == 200) {
+    String response = http.getString();
+    Serial.println(response);
+    setSuccess(response.c_str());
+  } else {
+    Serial.print("Error on sending POST: ");
+    Serial.println(httpResponseCode);
+    setError("error solving");
+  }
+
+  http.end();
+}
+
+void startAP() {
+  WiFi.softAP("TI-32-Config", NULL);
+  Serial.println("AP started: TI-32-Config");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.softAPIP());
+
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/save", HTTP_POST, handleSave);
+  server.begin();
+}
+
+void handleRoot() {
+  prefs.begin("ccalc", true);
+  String html = "<html><body><h1>TI-32 Configuration</h1><form action='/save' method='POST'>";
+  html += "SSID: <input type='text' name='ssid' value='" + prefs.getString("ssid", WIFI_SSID) + "'><br>";
+  html += "Password: <input type='password' name='pass' value='" + prefs.getString("pass", WIFI_PASS) + "'><br>";
+  html += "Server (ngrok): <input type='text' name='server' value='" + g_server + "'><br>";
+  html += "User: <input type='text' name='user' value='" + g_user + "'><br>";
+  html += "Auth Pass: <input type='password' name='auth_pass' value='" + g_pass + "'><br>";
+  html += "Chat Name: <input type='text' name='chat_name' value='" + g_chat_name + "'><br>";
+  html += "<input type='submit' value='Save'></form></body></html>";
+  prefs.end();
+  server.send(200, "text/html", html);
+}
+
+void handleSave() {
+  prefs.begin("ccalc", false);
+  if (server.hasArg("ssid")) prefs.putString("ssid", server.arg("ssid"));
+  if (server.hasArg("pass")) prefs.putString("pass", server.arg("pass"));
+  if (server.hasArg("server")) prefs.putString("server", server.arg("server"));
+  if (server.hasArg("user")) prefs.putString("user", server.arg("user"));
+  if (server.hasArg("auth_pass")) prefs.putString("auth_pass", server.arg("auth_pass"));
+  if (server.hasArg("chat_name")) prefs.putString("chat_name", server.arg("chat_name"));
+  prefs.end();
+
+  server.send(200, "text/plain", "Settings saved. Restarting...");
+  delay(1000);
+  ESP.restart();
+}
+
+void setupOTA() {
+  ArduinoOTA.setHostname("TI-32");
+  ArduinoOTA.onStart([]() { Serial.println("Start OTA"); });
+  ArduinoOTA.onEnd([]() { Serial.println("\nEnd OTA"); });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+  });
+  ArduinoOTA.begin();
+}
+
+void loadSettings() {
+  prefs.begin("ccalc", true);
+  g_server = prefs.getString("server", SERVER);
+  g_user = prefs.getString("user", HTTP_USERNAME);
+  g_pass = prefs.getString("auth_pass", HTTP_PASSWORD);
+  g_chat_name = prefs.getString("chat_name", CHAT_NAME);
+  prefs.end();
 }
 
 void image_list() {
   int page = realArgs[0];
-  auto url = String(SERVER) + String("/image/list?p=") + urlEncode(String(page));
+  auto url = g_server + String("/image/list?p=") + urlEncode(String(page));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXSTRARGLEN, &realsize)) {
@@ -506,7 +680,7 @@ void fetch_image() {
   Serial.print("id: ");
   Serial.println(id);
 
-  auto url = String(SERVER) + String("/image/get?id=") + urlEncode(String(id));
+  auto url = g_server + String("/image/get?id=") + urlEncode(String(id));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXHTTPRESPONSELEN, &realsize)) {
@@ -532,7 +706,7 @@ void fetch_image() {
 void fetch_chats() {
   int room = realArgs[0];
   int page = realArgs[1];
-  auto url = String(SERVER) + String("/chats/messages?p=") + urlEncode(String(page)) + String("&c=") + urlEncode(String(room));
+  auto url = g_server + String("/chats/messages?p=") + urlEncode(String(page)) + String("&c=") + urlEncode(String(room));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXSTRARGLEN, &realsize)) {
@@ -550,7 +724,7 @@ void send_chat() {
   int room = realArgs[0];
   const char* msg = strArgs[1];
 
-  auto url = String(SERVER) + String("/chats/send?c=") + urlEncode(String(room)) + String("&m=") + urlEncode(String(msg)) + String("&id=") + urlEncode(String(CHAT_NAME));
+  auto url = g_server + String("/chats/send?c=") + urlEncode(String(room)) + String("&m=") + urlEncode(String(msg)) + String("&id=") + urlEncode(g_chat_name);
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXSTRARGLEN, &realsize)) {
@@ -566,7 +740,7 @@ void send_chat() {
 
 void program_list() {
   int page = realArgs[0];
-  auto url = String(SERVER) + String("/programs/list?p=") + urlEncode(String(page));
+  auto url = g_server + String("/programs/list?p=") + urlEncode(String(page));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXSTRARGLEN, &realsize)) {
@@ -609,7 +783,7 @@ void fetch_program() {
 
   _resetProgram();
 
-  auto url = String(SERVER) + String("/programs/get?id=") + urlEncode(String(id));
+  auto url = g_server + String("/programs/get?id=") + urlEncode(String(id));
 
   if (makeRequest(url, programData, 4096, &programLength)) {
     setError("error making request for program data");
@@ -617,7 +791,7 @@ void fetch_program() {
   }
 
   size_t realsize = 0;
-  auto nameUrl = String(SERVER) + String("/programs/get_name?id=") + urlEncode(String(id));
+  auto nameUrl = g_server + String("/programs/get_name?id=") + urlEncode(String(id));
   if (makeRequest(nameUrl, programName, 256, &realsize)) {
     setError("error making request for program name");
     return;
