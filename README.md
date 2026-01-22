@@ -1,281 +1,134 @@
-================================================================================ TI-32 TI-84 Plus WiFi & GPT Mod - Complete Documentation
+================================================================================
+TI-32 TI-84 Plus WiFi & GPT Mod (ESP32-CAM Edition) - Complete Documentation
 
 OVERVIEW
+================================================================================
+TI-32 interfaces an AI-Thinker ESP32-CAM board with a TI-84 Plus calculator to
+provide internet access, ChatGPT integration, camera features, and wireless app installation.
 
-TI-32 interfaces an Adafruit ESP32 Feather board with a TI-84 Plus calculator to
-provide internet access, ChatGPT integration, and wireless app installation.
+This guide is specific to the "AI-Thinker ESP32-CAM" module.
 
-This guide is specific to the "Adafruit HUZZAH32 ESP32 Feather" board.
-
-================================================================================ ⚠️  CRITICAL SAFETY WARNING - READ BEFORE BUILDING
+================================================================================
+⚠️  CRITICAL SAFETY WARNING - READ BEFORE BUILDING
 
 VOLTAGE MISMATCH RISK:
-
 The TI-84 Plus operates at 5V logic.
-
 The ESP32 operates at 3.3V logic.
-
 DO NOT connect the calculator's data lines directly to the ESP32. Doing so will
 permanently destroy the ESP32's GPIO pins. You MUST use a Logic Level Converter.
 
 COMMON GROUND:
-
 You MUST connect the grounds of the Calculator, the Level Converter, and
 the ESP32 together. If you skip this, the device will not communicate.
 
 ================================================================================
-
-HARDWARE REQUIREMENTS
+1. HARDWARE REQUIREMENTS
 ================================================================================
 
 Calculator:
-
 TI-84 Plus Silver Edition (Monochrome) OR
-
 TI-84 Plus C Silver Edition (Color)
 
 Microcontroller:
-
-Adafruit ESP32 Feather (4MB Flash, WiFi + Bluetooth)
-
-Product ID: 3405
+AI-Thinker ESP32-CAM (with OV2640 camera module)
 
 Interface:
-
 SparkFun Logic Level Converter (Bi-Directional)
-
 2.5mm Stereo Cable (to cut open) or 22AWG wire
 
 Power Components:
-
 1x SPDT Slide Switch
-
 1x 1N4001 Diode (REQUIRED for Monochrome TI-84 Plus only)
 
-================================================================================ 2. WIRING GUIDE
+================================================================================
+2. WIRING GUIDE
 
-A. PIN MAPPINGS (Adafruit Feather)
-
-We use pins A0 and A1 because the Feather does not have pins labeled D1/D10.
-
-
+A. PIN MAPPINGS (AI-Thinker ESP32-CAM)
+Signal: TIP  ----------------> GPIO 12
+Signal: RING ----------------> GPIO 13
 
 B. DATA WIRING DIAGRAM
 
-  TI-84 PLUS                   LOGIC CONVERTER                 ESP32 FEATHER
+  TI-84 PLUS                   LOGIC CONVERTER                 ESP32-CAM
+(2.5mm Port)                 (SparkFun BOB-12009)             (AI-Thinker)
 
+[Signal: TIP]  ----------------> [HV1]    [LV1] <-------------- [GPIO 12]
+[Signal: RING] ----------------> [HV2]    [LV2] <-------------- [GPIO 13]
 
-(2.5mm Port)                 (SparkFun BOB-12009)             (Adafruit Huzzah)
-
-[Signal: TIP]  ----------------> [HV1]    [LV1] <-------------- [Pin A0]
-[Signal: RING] ----------------> [HV2]    [LV2] <-------------- [Pin A1]
-
-[Power: 5V]    ----------------> [HV]                           [Pin USB]
-^
-|
-[LV] <------------------------ [Pin 3V]
-(Reference Voltage)
+[Power: 5V]    ----------------> [HV]                           [Pin 5V]
+                                   ^
+                                   |
+                                 [LV] <------------------------ [Pin 3V3]
+                          (Reference Voltage)
 
 [Ground]       ----------------> [GND] -- [GND] <-------------- [Pin GND]
-|
-(Common Ground)
+                                   |
+                            (Common Ground)
 
 C. POWER SUPPLY WIRING
-
-How to power the ESP32 using the calculator's batteries.
-
-
-
-OPTION B: TI-84 Plus Silver Edition (Monochrome)
-Battery Type: 4x AAA Batteries (~6.4V when fresh)
-Wiring:
-[Calc Battery +] --> [Slide Switch] --> [DIODE 1N4001] --> [ESP32 'USB' Pin]
+[Calc Battery +] --> [Slide Switch] --> [DIODE 1N4001] --> [ESP32-CAM '5V' Pin]
 Note:
-- The diode is REQUIRED to drop voltage below 6V to protect the regulator.
+- The diode is REQUIRED for AAA powered calculators (~6.4V) to drop voltage safely.
 - The stripe on the diode must face towards the ESP32.
 
-================================================================================ 3. SOFTWARE SETUP: SERVER & NGROK
+================================================================================
+3. SOFTWARE SETUP: SERVER & NGROK
 
-You need two windows running on your computer for the internet features to work.
-
-STEP 1: The Node.js Server ("The Chef")
-
+STEP 1: The Node.js Server
 Install Node.js on your computer.
-
 Navigate to your project folder: cd TI-32/server
-
 Install dependencies: npm install
-
 Create a .env file in this folder:
 PORT=8080
 HTTP_USERNAME="admin"
 HTTP_PASSWORD="password123"
-OPENAI_API_KEY="sk-..."  (Get this from OpenAI)
+OPENROUTER_API_KEY="your_key_here"
 
 Run the server: node index.mjs
 
-STEP 2: Ngrok ("The Delivery Driver")
-This allows the ESP32 to talk to your computer even if they are on different networks.
-
+STEP 2: Ngrok
 Download ngrok.exe from ngrok.com.
+Place ngrok.exe into your TI-32/server folder.
+Authenticate: .\ngrok config add-authtoken YOUR_TOKEN_HERE
+Start tunnel: .\ngrok http 8080
+Copy the Forwarding URL (e.g., https://abc-123.ngrok-free.app).
 
-Place ngrok.exe directly into your TI-32/server folder.
+================================================================================
+4. SOFTWARE SETUP: ESP32 FIRMWARE
 
-Open a NEW PowerShell window in that folder.
+1. Open esp32/esp32.ino in Arduino IDE.
+2. Select Board: "AI Thinker ESP32-CAM".
+3. Configure Secrets:
+   - Rename `esp32/secrets.h.template` to `esp32/secrets.h`.
+   - Update with your WiFi and Ngrok details.
+4. Upload the code via USB-to-Serial adapter.
 
-Authenticate (first time only):
-.\ngrok config add-authtoken YOUR_TOKEN_HERE
+================================================================================
+5. AP CONFIGURATION PORTAL & OTA
 
-Start the tunnel:
-.\ngrok http 8080
+WiFi Failover / Configuration:
+If the ESP32 fails to connect to the saved WiFi, it will start an Access Point
+named "TI-32-Config". Connect to this WiFi with your computer and go to
+http://192.168.4.1 in your browser. You can update WiFi and API settings via
+the web form.
 
-Copy the Forwarding URL (e.g., https://www.google.com/search?q=https://abc-123.ngrok-free.app).
+OTA Updates:
+Once connected to WiFi, you can flash new firmware wirelessly from Arduino IDE
+by selecting the "TI-32" network port.
 
-⚠️ CRITICAL WARNING:
-Every time you restart Ngrok (if using the free version), the URL CHANGES.
-You must update secrets.h on the ESP32 every time you restart Ngrok.
+================================================================================
+6. INSTALLATION ON CALCULATOR ("Silent Transfer")
 
-================================================================================ 4. SOFTWARE SETUP: ESP32 FIRMWARE
+1. Press [CLEAR] on calculator home screen.
+2. Type '5', press [STO->], press [ALPHA][PRGM] (C), press [ENTER].
+3. Press [PRGM] -> [I/O] tab -> '2:Send('.
+4. Press [ALPHA][PRGM] (C), press [ENTER].
+5. Screen will say "Done", then "Receiving... TI32" after a few seconds.
+6. Launch: Press [PRGM], select TI32, press [ENTER].
 
-Open esp32/esp32.ino in Arduino IDE.
+================================================================================
+7. TROUBLESHOOTING
 
-EDIT PIN DEFINITIONS (Lines ~35): Change the pin numbers to match the wiring (A0=26, A1=25).
-
-constexpr auto TIP = 26;   // GPIO 26 (A0) constexpr auto RING = 25;  // GPIO 25 (A1)
-
-CONFIGURE SECRETS (esp32/secrets.h): Create this file and paste the following. Replace values with yours.
-
-#ifndef SECRETS_H
-#define SECRETS_H
-
-// WiFi Credentials (2.4GHz ONLY)
-#define WIFI_SSID "Your_WiFi_Name"
-#define WIFI_PASS "Your_WiFi_Password"
-
-// Server Settings
-// Paste the Ngrok URL you copied in Step 2 here
-#define SERVER "https://www.google.com/search?q=https://abc-123.ngrok-free.app"
-
-// Login (Must match your .env file)
-#define HTTP_USERNAME "admin"
-#define HTTP_PASSWORD "password123"
-#define CHAT_NAME "CalcUser1"
-
-// REQUIRED: Uncomment this line to enable HTTPS for Ngrok
-#define SECURE
-
-#endif
-
-Upload the code to your ESP32 Feather via USB.
-
-================================================================================ 5. INSTALLATION ON CALCULATOR ("Silent Transfer")
-
-You do not need a link cable. The ESP32 installs the app internally.
-
-Turn ON the Calculator and the ESP32 Switch.
-
-Press [CLEAR] to go to a blank home screen.
-
-Type the number '5' and store it in variable 'C':
-
-Press [5]
-
-Press [STO->]
-
-Press [ALPHA] then [PRGM] (to type 'C')
-
-Press [ENTER]
-
-Screen should show: 5
-
-Trigger the transfer command:
-
-Press [PRGM]
-
-Press Right Arrow to select [I/O] tab
-
-Select '2:Send('
-
-Press [ALPHA] then [PRGM] (to type 'C')
-
-Press [ENTER]
-
-Screen should show: Send(C)
-
-Wait:
-
-Screen will say "Done".
-
-Wait 2-3 seconds.
-
-Screen will change to "Receiving... TI32".
-
-Launch:
-
-Press [PRGM], select TI32, press [ENTER].
-
-================================================================================ 6. TROUBLESHOOTING
-
-"Error: Link"
-
-Cause: Wiring is likely crossed or grounds are not connected.
-
-Fix: Swap the A0 and A1 pins in the esp32.ino code (swap 26 and 25) and re-upload.
-
-Fix: Ensure GND of Calculator, Converter, and ESP32 are all connected.
-
-"WiFi Failed" / Stuck on "Connecting..."
-
-Cause: Wrong WiFi credentials or 5GHz network.
-
-Fix: ESP32 only supports 2.4GHz WiFi. Check spelling in secrets.h.
-
-"GPT Error" / No Response
-
-Cause: Server not running or Ngrok tunnel closed.
-
-Fix: Ensure node index.mjs AND .\ngrok http 8080 are both running.
-
-Fix: Ensure the Ngrok URL in secrets.h matches the one currently running in the terminal.
-
-Fix: Ensure #define SECURE is uncommented in secrets.h.
-
-"Ngrok Command Not Found"
-
-Cause: PowerShell doesn't see the file.
-
-Fix: Use .\ngrok instead of just ngrok. Ensure ngrok.exe is in the current folder.
-
-```plaintext
-      TI-84 PLUS                      LOGIC LEVEL CONVERTER                    ESP32 FEATHER
-   (2.5mm Link Port)                   (SparkFun BOB-12009)                    (WiFi Module)
-
- +-------------------+               +----------------------+              +-------------------+
- |                   |               |                      |              |                   |
- |    [SIGNAL]       |               |       HV SIDE        |              |                   |
- |   (White/Red)     |               |      (5V Logic)      |              |                   |
- |                   |               |                      |              |                   |
- |       TIP  -------+-------------->| HV1              LV1 |<-------------+------- TX / D1    |
- |                   |               |                      |              |                   |
- |                   |               |                      |              |                   |
- |   (Red/White)     |               |                      |              |                   |
- |       RING -------+-------------->| HV2              LV2 |<-------------+------- D10        |
- |                   |               |                      |              |                   |
- |                   |               |                      |              |                   |
- |     [POWER]       |               |                      |              |                   |
- |   (Calc Bat +)    |               |                      |              |                   |
- |      5V+ ---------+-------------->| HV                   |              |                   |
- |                   |               |                      |              |                   |
- |                   |               |       LV SIDE        |              |                   |
- |                   |               |     (3.3V Logic)     |              |                   |
- |                   |               |                      |              |                   |
- |                   |               |                   LV |<-------------+------- 3V (Out)   |
- |                   |               |                      |              |                   |
- |                   |               |                      |              |                   |
- |    [GROUND]       |               |                      |              |                   |
- |   (Copper/Blk)    |               |                      |              |                   |
- |     SLEEVE -------+------+------->| GND              GND |<------+------+------- GND        |
- +-------------------+      |        +----------------------+       |      +-------------------+
-                            |                                       |
-                            +---------------------------------------+
-                                         (Common Ground)
+"Error: Link": Check wiring (GPIO 12/13), ensure common ground.
+"WiFi Failed": Connect to "TI-32-Config" AP to reconfigure credentials.
+"Camera Failed": Ensure board has PSRAM for 720p, or it will fall back to SVGA.
