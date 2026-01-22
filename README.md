@@ -141,7 +141,22 @@ If the ESP32 cannot connect to your saved WiFi, it will automatically start an A
 Use this portal to update WiFi credentials or your Ngrok URL without reflashing the device!
 
 ### Wireless Updates (OTA)
-Once connected to WiFi, you can flash firmware updates wirelessly from the Arduino IDE by selecting the **"TI-32"** network port.
+Once connected to WiFi, you can flash firmware updates wirelessly without ever plugging the ESP32 into your computer again.
+
+#### 🔧 How to use Wireless Updates:
+1.  Ensure your **ESP32-CAM** and your **computer** are on the same WiFi network.
+2.  Open your project in the **Arduino IDE**.
+3.  Go to **Tools** -> **Port**.
+4.  Look for a section labeled **"Network Ports"**.
+5.  Select **"TI-32 at [IP_ADDRESS]"**.
+6.  Click **Upload**. The IDE will now send the code over WiFi!
+
+#### 🔍 How to verify it's working:
+*   If you see **"TI-32"** under Network Ports, the wireless bridge is active and ready.
+*   If it doesn't appear:
+    *   Restart the Arduino IDE.
+    *   Ensure your computer's firewall isn't blocking UDP port 3232.
+    *   Check the Serial Monitor (if plugged in) to ensure it says "Connected to WiFi".
 
 ---
 
