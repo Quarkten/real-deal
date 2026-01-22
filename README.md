@@ -97,7 +97,37 @@
 2.  Install dependencies: `WiFi`, `HTTPClient`, `Preferences`, `ArduinoOTA`, `esp_camera`.
 3.  Select Board: **"AI Thinker ESP32-CAM"**.
 4.  Rename `esp32/secrets.h.template` to `esp32/secrets.h` and update your credentials.
-5.  Upload via USB-to-Serial adapter.
+5.  **Upload:**
+    *   If you have an **FTDI Adapter**, connect it to the ESP32-CAM and hit upload.
+    *   If you **don't** have an FTDI, you can use a **Raspberry Pi Pico** as a programmer (see below).
+
+#### 🛠 Alternative: Flashing via Raspberry Pi Pico
+If you don't have an FTDI adapter, you can turn a Raspberry Pi Pico into a USB-to-Serial bridge.
+
+**1. Prepare the Pico:**
+Upload this code to your Pico using the Arduino IDE (select "Raspberry Pi Pico" as the board):
+```cpp
+void setup() {
+  Serial.begin(115200);  // USB Serial
+  Serial1.begin(115200); // Hardware UART0 (GP0/GP1)
+}
+void loop() {
+  if (Serial.available()) Serial1.write(Serial.read());
+  if (Serial1.available()) Serial.write(Serial1.read());
+}
+```
+
+**2. Wiring (Pico to ESP32-CAM):**
+| Pico Pin | ESP32-CAM Pin |
+| :--- | :--- |
+| **VBUS (5V)** | **5V** |
+| **GND** | **GND** |
+| **GP0 (TX)** | **U0R (RX)** |
+| **GP1 (RX)** | **U0T (TX)** |
+| - | **GPIO 0** connected to **GND** (Required for Flash Mode) |
+
+**3. Upload:**
+With the Pico connected to your PC and the wiring above complete, select the Pico's COM port in Arduino IDE and upload the `esp32.ino` sketch to the ESP32-CAM. **Note:** You may need to press the 'Reset' button on the ESP32-CAM when the IDE says "Connecting...".
 
 ---
 
