@@ -171,6 +171,25 @@ Once connected to WiFi, you can flash firmware updates wirelessly without ever p
 
 ---
 
+## 🔒 Security & Passwords
+
+To keep your connection secure and control access, the following passwords are used:
+
+### 1. Calculator Unlock Password
+*   **Password:** `42069`
+*   **Purpose:** The ESP32 starts in a "locked" state to prevent unauthorized commands from the calculator. You must send this number to variable `P` on the calculator to unlock features.
+
+### 2. Configuration Access Point
+*   **SSID:** `TI-32-Config`
+*   **Password:** *None (Open)*
+*   **Note:** This network only appears if the device fails to connect to your home WiFi. It is open by default to allow for easy recovery of credentials.
+
+### 3. Server Authentication (API)
+*   **Purpose:** Protects your Node.js server from unauthorized requests.
+*   **Settings:** Defined in your `.env` file (Server side) and the Configuration Portal (ESP32 side). Both must match for the ESP32 to successfully talk to your computer.
+
+---
+
 ## ❓ Troubleshooting
 
 *   **Error: Link:** Check your wiring to GPIO 12/13. Ensure common ground is connected.
