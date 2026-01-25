@@ -48,6 +48,9 @@ graph LR
 | ⚡ **Microcontroller Power** | Fast boot time, low power usage, no OS required |
 | 📦 **Portable** | Can run off a small battery bank |
 | 🛠️ **Built-in Diagnostics** | Serial monitor logging for debugging |
+| 🔋 **Power Management** | Automatic deep sleep/wake to extend battery life |
+| 🔋 **Power Management** | Automatic deep sleep/wake to extend battery life |
+| 🔋 **Power Management** | Automatic deep sleep/wake to extend battery life |
 
 ---
 
@@ -438,6 +441,85 @@ After initial setup, you can update the ESP32 firmware without physical access:
 > - If you can't access the OTA page, verify the ESP32 is connected to WiFi
 > - Check your firewall settings if the page doesn't load
 > - The ESP32 must have enough free flash space for the new firmware
+
+### Step 4: Power Management (NEW)
+
+The ESP32-CAM now features automatic power management to extend battery life when used with the calculator:
+
+#### How It Works
+- **When calculator connected**: ESP32 wakes up, connects to WiFi, starts OTA server
+- **When calculator disconnected**: ESP32 enters deep sleep after 5 seconds
+- **When calculator reconnected**: ESP32 wakes up, reconnects to WiFi, resumes operation
+
+#### Power Consumption
+- **Deep Sleep**: ~10µA (months on small LiPo battery)
+- **Active (WiFi connected)**: ~100-200mA
+- **Active (WiFi idle)**: ~50-100mA
+
+#### Power Status Command
+New command ID 21 (`get_power_status`) provides power management status:
+
+```basic
+PROGRAM:POWERSTATUS
+:ClrHome
+:Disp "GETTING POWER STATUS..."
+:Send(21)
+:GetCalc(Str0)
+:Disp Str0  // Shows power state, boot count, WiFi status
+:Pause
+:ClrHome
+:Stop
+```
+
+**Output Format:**
+```json
+{
+  "powered": true,
+  "deepSleep": false,
+  "bootCount": 5,
+  "wifiConnected": true,
+  "lastIP": "192.168.1.100"
+}
+```
+
+#### Hardware Requirements
+- **No additional hardware needed** - uses existing TIP/RING pins
+- **Existing 1kΩ resistors** provide voltage protection
+- **Software-only solution** - detects power via existing connections
+
+#### Benefits
+- **Extended battery life** when calculator disconnected
+- **Automatic operation** - no user intervention needed
+- **Fast wake-up** when calculator reconnects (~3-6 seconds)
+- **Power status visibility** for debugging
+
+> [!TIP]
+> **Pro Tip:** The power management feature is especially useful for portable use. When you disconnect the calculator, the ESP32 automatically enters deep sleep to save battery. When you reconnect, it automatically wakes up and resumes operation.
+
+> [!NOTE]
+> **Power Detection:** The ESP32 monitors the TIP/RING pins for voltage presence. When the calculator is connected, these pins receive voltage. When disconnected, the pins go LOW, triggering deep sleep after a 5-second delay.
+
+#### Testing Power Management
+1. **Connect calculator** - ESP32 should wake up and connect to WiFi
+2. **Disconnect calculator** - ESP32 should enter deep sleep after 5 seconds
+3. **Reconnect calculator** - ESP32 should wake up and reconnect to WiFi
+4. **Check power status** - Use command 21 to verify power state
+
+> [!WARNING]
+> **Important:** The ESP32 must be powered solely by the calculator connection for power management to work correctly. If you have a battery backup, the power management may not function as expected.
+
+#### Power Management Configuration
+The power management behavior can be customized in [`esp32/esp32.ino`](esp32/esp32.ino):
+
+```cpp
+// Power management configuration
+#define POWER_PIN_TIP 12
+#define POWER_PIN_RING 13
+#define POWER_CHECK_INTERVAL 100  // ms
+#define POWER_LOSS_DELAY 5000     // ms (5 seconds delay before deep sleep)
+```
+
+You can adjust `POWER_LOSS_DELAY` to change how long the ESP32 waits before entering deep sleep after power loss.
 
 ### Step 4: Use Node.js Scripts for WiFi Management (NEW)
 
