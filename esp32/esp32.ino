@@ -57,6 +57,13 @@ char currentServer[MAX_NGROK_URL_LEN] = {0};
 // whether or not the user has entered the password
 bool unlocked = true;
 
+// Power management variables
+bool isPowered = false;
+bool powerLossDetected = false;
+int bootCount = 0;
+bool wifiConnected = false;
+char lastIP[16] = {0};
+
 // Arguments
 int currentArg = 0;
 char strArgs[MAXARGS][MAXSTRARGLEN];

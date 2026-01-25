@@ -128,8 +128,17 @@ The TI-84 Plus uses a 3-wire serial protocol (TIP, RING, GND). We will use GPIO 
 
 #### 🔑 Initial Configuration (First Time Only)
 
-1. Download this repository and open `esp32/esp32.ino` in Arduino IDE
-2. Edit the [`secrets.h`](esp32/secrets.h) file to add your initial credentials:
+1. **Move the Entire `esp32` Folder**:
+   - Copy the entire `esp32` folder from this repository to your Arduino IDE's sketchbook directory or any other location where you store your Arduino projects.
+   - **Do not move only the `esp32.ino` file**, as it depends on other files in the `esp32` directory, such as `config.h`, `config_manager.h`, `wifi_manager.h`, `ota_manager.h`, `launcher.h`, and `secrets.h`.
+
+2. **Open the Project in Arduino IDE**:
+   - Open the Arduino IDE.
+   - Go to `File` > `Open` and navigate to the `esp32` folder.
+   - Select the `esp32.ino` file. The Arduino IDE will automatically recognize the other files in the folder as part of the project.
+
+3. **Edit the [`secrets.h`](esp32/secrets.h) File**:
+   - Add your initial credentials to the `secrets.h` file:
 
 ```cpp
 // --- WiFi Settings ---
@@ -149,6 +158,31 @@ The TI-84 Plus uses a 3-wire serial protocol (TIP, RING, GND). We will use GPIO 
 // --- Secure Mode ---
 #define SECURE
 ```
+
+#### 🔧 Resolving the `Preferences.h` Error
+
+If you encounter the error `cannot open source file "Preferences.h"`, it means the ESP32 Arduino core library is not properly installed or configured in your development environment. Follow these steps to resolve the issue:
+
+1. **Install the ESP32 Arduino Core**:
+   - Open Arduino IDE.
+   - Go to `File` > `Preferences`.
+   - In the "Additional Boards Manager URLs" field, add the following URL:
+     ```
+     https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+     ```
+   - Go to `Tools` > `Board` > `Boards Manager`, search for "esp32", and install the latest version of the ESP32 Arduino core.
+
+2. **Select the Correct Board**:
+   - Go to `Tools` > `Board` and select your ESP32 board (e.g., "Adafruit ESP32 Feather").
+
+3. **Verify Library Installation**:
+   - Ensure that the `Preferences.h` file is available in your Arduino libraries. It should be included as part of the ESP32 core installation.
+
+4. **Restart the IDE**:
+   - After installing the ESP32 core, restart the Arduino IDE to ensure the changes take effect.
+
+> [!TIP]
+> If you are using VSCode with the PlatformIO extension, ensure that the ESP32 platform is installed and configured correctly in your `platformio.ini` file.
 
 #### 🔑 Configuration Details
 
