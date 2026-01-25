@@ -520,10 +520,9 @@ The power management behavior can be customized in [`esp32/esp32.ino`](esp32/esp
 ```
 
 You can adjust `POWER_LOSS_DELAY` to change how long the ESP32 waits before entering deep sleep after power loss.
-
 ### Step 4: Use Node.js Scripts for WiFi Management (NEW)
 
-The project now includes powerful Node.js scripts for managing WiFi connections and displaying IP addresses from your computer:
+The project now includes powerful Node.js scripts for managing WiFi connections and displaying IP addresses from your computer. These scripts are standalone utilities designed to interact with the ESP32 device's HTTP API endpoints and are not part of the server's routing logic.
 
 #### 📋 Available Scripts
 
@@ -533,6 +532,33 @@ The project now includes powerful Node.js scripts for managing WiFi connections 
 | **WIFISCAN.mjs** | Scan WiFi networks and show IP | `node WIFISCAN.mjs [esp32_ip]` |
 | **WIFIPASS.mjs** | Connect to WiFi and display IP | `node WIFIPASS.mjs [esp32_ip] [ssid] [password]` |
 | **NGROKSET.mjs** | Manage Ngrok URL and show IP | `node NGROKSET.mjs [esp32_ip] [new_url]` |
+
+#### 📁 Organizational Logic
+
+These scripts are placed outside the `/server/routes` directory because they are **utility scripts** rather than server routes. They are designed to be run from the command line to manage the ESP32 device's configuration and are not exposed as server endpoints. This placement ensures a clear separation between server routing logic and utility tools.
+
+#### 🔐 Security Implications
+
+- These scripts interact with the ESP32 device's HTTP API, which is only accessible on the local network.
+- No authentication is required for local access, but sensitive data (e.g., WiFi passwords) are transmitted in plaintext. This is acceptable for a local development environment but should be secured for production use.
+
+#### 🔧 Relocation Considerations
+
+If these scripts were to be integrated into the server as routes, the following steps would be required:
+
+1. **Refactor the Scripts**: Convert the CLI-based logic into Express.js route handlers.
+2. **Update Dependencies**: Replace `node-fetch` with the `fetch` API or `axios` for HTTP requests within the server.
+3. **Integrate with Server**: Import the new routes in `server/index.mjs` and mount them under appropriate paths (e.g., `/esp32/wifi`, `/esp32/ngrok`).
+4. **Testing**: Verify that the relocated routes work as expected and do not conflict with existing routes.
+
+#### 🎯 Benefits
+
+- **Instant IP display** without checking serial monitor
+- **Easy WiFi management** from computer without calculator
+- **Cross-platform** (works on Windows, macOS, Linux)
+- **Clear OTA instructions** with automatic IP detection
+- **Backward compatible** with existing calculator programs
+
 
 #### 🚀 Quick Start
 
