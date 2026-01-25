@@ -49,8 +49,13 @@ graph LR
 | 📦 **Portable** | Can run off a small battery bank |
 | 🛠️ **Built-in Diagnostics** | Serial monitor logging for debugging |
 | 🔋 **Power Management** | Automatic deep sleep/wake to extend battery life |
-| 🔋 **Power Management** | Automatic deep sleep/wake to extend battery life |
-| 🔋 **Power Management** | Automatic deep sleep/wake to extend battery life |
+| 📷 **Camera Support** | Full camera functionality for ESP32-CAM AI Thinker board |
+| 🖼️ **Multi-Modal AI** | Combine text and image inputs for richer interactions |
+| 🎯 **Real-Time Feedback** | Focus confirmation and lighting suggestions during capture |
+| 🔄 **Context Management** | Maintains conversation context between text and image inputs |
+| 🌐 **Image Processing** | Node.js backend for image analysis and AI processing |
+| 📸 **Image Capture** | Capture images via calculator commands |
+| 📊 **Power Status** | Monitor power state, boot count, and WiFi status |
 
 ---
 
@@ -173,7 +178,7 @@ If you encounter the error `cannot open source file "Preferences.h"`, it means t
    - Go to `Tools` > `Board` > `Boards Manager`, search for "esp32", and install the latest version of the ESP32 Arduino core.
 
 2. **Select the Correct Board**:
-   - Go to `Tools` > `Board` and select your ESP32 board (e.g., "Adafruit ESP32 Feather").
+   - Go to `Tools` > `Board` and select your ESP32 board (e.g., "AI Thinker ESP32-CAM").
 
 3. **Verify Library Installation**:
    - Ensure that the `Preferences.h` file is available in your Arduino libraries. It should be included as part of the ESP32 core installation.
@@ -373,7 +378,7 @@ After uploading the firmware, you can configure WiFi and Ngrok settings directly
    - Enter a test question (e.g., "What is 2+2?")
    - The ESP32 will connect to your Node.js server via Ngrok and return the AI response
 
-### 4️⃣ Install Calculator Program
+### 6️⃣ Install Calculator Program
 
 You need to get the `PIGPT` program onto your calculator.
 
@@ -554,7 +559,8 @@ The power management behavior can be customized in [`esp32/esp32.ino`](esp32/esp
 ```
 
 You can adjust `POWER_LOSS_DELAY` to change how long the ESP32 waits before entering deep sleep after power loss.
-### Step 4: Use Node.js Scripts for WiFi Management (NEW)
+
+### Step 5: Use Node.js Scripts for WiFi Management (NEW)
 
 The project now includes powerful Node.js scripts for managing WiFi connections and displaying IP addresses from your computer. These scripts are standalone utilities designed to interact with the ESP32 device's HTTP API endpoints and are not part of the server's routing logic.
 
@@ -592,7 +598,6 @@ If these scripts were to be integrated into the server as routes, the following 
 - **Cross-platform** (works on Windows, macOS, Linux)
 - **Clear OTA instructions** with automatic IP detection
 - **Backward compatible** with existing calculator programs
-
 
 #### 🚀 Quick Start
 
@@ -667,7 +672,7 @@ The ESP32 now exposes these HTTP endpoints:
 
 These endpoints work alongside the existing calculator-based DBus commands, giving you flexibility in how you manage your ESP32 device.
 
-### Step 4: Update WiFi & Ngrok Settings
+### Step 6: Update WiFi & Ngrok Settings
 
 You can update WiFi credentials and Ngrok URL anytime from the calculator:
 
@@ -684,7 +689,7 @@ You can update WiFi credentials and Ngrok URL anytime from the calculator:
 > [!NOTE]
 > **Factory Reset:** If you need to reset all configuration, you can send command `17` with password `42069` to clear NVS and restore default settings from `secrets.h`.
 
-### Step 5: Use Other Features
+### Step 7: Use Other Features
 
 All existing features continue to work with the new configuration system:
 
@@ -694,6 +699,236 @@ All existing features continue to work with the new configuration system:
 - **Chat Features:** Use `send_chat` and `fetch_chats` commands
 
 All API calls now use the Ngrok URL stored in NVS, so you can update it anytime without recompiling.
+
+---
+
+## 📷 Multi-Modal Features (NEW)
+
+### Camera Functionality
+
+The ESP32-CAM now supports full camera functionality for the AI Thinker board:
+
+#### Hardware Requirements
+- **ESP32-CAM AI Thinker board** with integrated camera
+- **Camera module** (OV2640 typically included)
+- **No additional hardware** needed for camera operation
+
+#### Camera Configuration
+Camera functionality is enabled by default in [`esp32/esp32.ino`](esp32/esp32.ino:26):
+
+```cpp
+#define CAMERA
+```
+
+The camera uses the following GPIO pins (pre-configured in [`camera_pins.h`](esp32/camera_pins.h:139)):
+- **PWDN**: GPIO 32
+- **RESET**: GPIO -1 (not used)
+- **XCLK**: GPIO 0
+- **SIOD**: GPIO 26
+- **SIOC**: GPIO 27
+- **Y2-Y9**: Camera data pins
+- **VSYNC**: GPIO 25
+- **HREF**: GPIO 23
+- **PCLK**: GPIO 22
+- **LED**: GPIO 33 (camera LED flash)
+
+#### Image Capture Commands
+
+##### **Command 7: `snap` - Capture Image**
+Captures an image from the camera and stores it in the frame buffer.
+
+```basic
+PROGRAM:CAPTURE
+:ClrHome
+:Disp "CAPTURING IMAGE..."
+:Send(7)
+:GetCalc(Str0)
+:Disp Str0  // "Image captured successfully"
+:Pause
+:ClrHome
+:Stop
+```
+
+**Features:**
+- Real-time feedback before capture (focus and lighting suggestions)
+- Image stored in frame buffer for processing
+- Context management for multi-modal interactions
+
+##### **Command 8: `solve` - Capture and Solve**
+Captures an image and prepares it for solving (e.g., QR code, object recognition).
+
+```basic
+PROGRAM:SOLVE
+:ClrHome
+:Disp "CAPTURING TO SOLVE..."
+:Send(8)
+:GetCalc(Str0)
+:Disp Str0  // "Image solved successfully"
+:Pause
+:ClrHome
+:Stop
+```
+
+**Features:**
+- Captures image for processing
+- Placeholder for image solving logic (QR code, object recognition, etc.)
+- Context management for multi-modal interactions
+
+#### Real-Time Feedback
+
+The system provides real-time feedback during image capture:
+
+```basic
+PROGRAM:CAPTURE_FEEDBACK
+:ClrHome
+:Disp "CHECKING CAMERA..."
+:Send(7)
+:GetCalc(Str0)
+:Disp Str0  // "Capture Feedback: Ready to capture!"
+:Pause
+:ClrHome
+:Stop
+```
+
+**Feedback includes:**
+- Focus status (optimal/not optimal)
+- Lighting conditions (good/poor)
+- Capture readiness
+
+#### Context Management
+
+The system maintains conversation context between text and image inputs:
+
+```cpp
+// Context management for multi-modal interactions
+char contextBuffer[MAXHTTPRESPONSELEN];
+bool useTextAPI = true;
+
+void manageContext(const char* input, bool isImage) {
+  // Update the context buffer with the latest input
+  if (isImage) {
+    strncpy(contextBuffer, "[Image Context] ", MAXHTTPRESPONSELEN - 1);
+    strncat(contextBuffer, input, MAXHTTPRESPONSELEN - strlen(contextBuffer) - 1);
+    useTextAPI = false;
+  } else {
+    strncpy(contextBuffer, "[Text Context] ", MAXHTTPRESPONSELEN - 1);
+    strncat(contextBuffer, input, MAXHTTPRESPONSELEN - strlen(contextBuffer) - 1);
+    useTextAPI = true;
+  }
+}
+```
+
+**Benefits:**
+- Maintains conversation history across text and image inputs
+- Enables richer AI interactions
+- Supports complex multi-modal queries
+
+### Node.js Backend for Image Processing
+
+The Node.js server now includes enhanced image processing capabilities:
+
+#### Image Upload Endpoint
+**POST `/upload`** - Upload and process images from the ESP32
+
+```javascript
+// server/routes/images.mjs
+app.post('/upload', upload.single('image'), async (req, res) => {
+  // Process uploaded image
+  // Send to AI analysis
+  // Return results
+});
+```
+
+**Features:**
+- Image validation and processing
+- AI analysis integration
+- Context-aware responses
+- Error handling
+
+#### Image Processing Workflow
+1. **Capture**: ESP32 captures image via camera
+2. **Upload**: Image sent to Node.js server
+3. **Process**: Server processes and analyzes image
+4. **AI Analysis**: Image sent to AI model for analysis
+5. **Response**: Results returned to calculator
+
+#### Test Script
+A test script is provided to verify multi-modal functionality:
+
+```bash
+node test_multimodal.mjs
+```
+
+This script tests:
+- Text input processing
+- Image capture and processing
+- Context continuity
+- System latency
+
+### Multi-Modal Interaction Examples
+
+#### Example 1: Text + Image Query
+```
+Calculator: "What is this object?"
+ESP32: Captures image and sends to server
+Server: Analyzes image with AI
+AI: "This is a red apple"
+Calculator: Displays "This is a red apple"
+```
+
+#### Example 2: Context-Aware Follow-up
+```
+Calculator: "What is this?" (sends image)
+ESP32: Captures image, sends to server
+Server: Analyzes image
+AI: "This is a bicycle"
+Calculator: Displays "This is a bicycle"
+
+Calculator: "What color is it?" (follow-up)
+ESP32: Sends text query with image context
+Server: Uses previous context
+AI: "The bicycle is blue"
+Calculator: Displays "The bicycle is blue"
+```
+
+#### Example 3: Image Analysis
+```
+Calculator: "Analyze this image" (sends image)
+ESP32: Captures image, sends to server
+Server: Performs detailed analysis
+AI: "Image contains: 1) Person, 2) Mountain background, 3) Sunny weather"
+Calculator: Displays analysis results
+```
+
+### Performance Optimization
+
+#### Latency Reduction
+- **Context caching**: Reduces redundant AI calls
+- **Image compression**: Optimized for ESP32-CAM
+- **Parallel processing**: Text and image processing
+- **Connection pooling**: Efficient WiFi usage
+
+#### Memory Management
+- **Frame buffer optimization**: Efficient image storage
+- **Context buffer limits**: Prevents memory overflow
+- **Dynamic allocation**: Based on image size
+
+### Testing Multi-Modal System
+
+Run the test script to verify functionality:
+
+```bash
+cd test-images
+node ../test_multimodal.mjs
+```
+
+**Test Coverage:**
+- ✅ Text input processing
+- ✅ Image capture and upload
+- ✅ Context management
+- ✅ AI response handling
+- ✅ Error recovery
+- ✅ Latency measurement
 
 ---
 
@@ -710,6 +945,9 @@ All API calls now use the Ngrok URL stored in NVS, so you can update it anytime 
 | Can't Access OTA Page | Wrong IP or Network | Verify ESP32 IP address and that computer is on same network |
 | WiFi Won't Connect | Wrong Credentials | Check SSID and password in NVS, try `WIFIPASS` again |
 | Ngrok URL Not Working | Invalid Format | URL must contain "ngrok" and be a valid HTTPS URL |
+| Camera Not Working | CAMERA not defined | Uncomment `#define CAMERA` in esp32.ino |
+| Image Capture Fails | Camera not initialized | Check camera_pins.h configuration |
+| Context Lost | Buffer overflow | Reduce context buffer size or clear context |
 
 ### 🐛 Debug Tips
 
@@ -719,6 +957,8 @@ All API calls now use the Ngrok URL stored in NVS, so you can update it anytime 
 - Test the calculator's I/O port with another link cable first
 - Use `configMgr.printAll()` in setup to see stored configuration
 - Check WiFi status with `wifiMgr.printStatus()`
+- For camera issues, check `esp_camera_init()` return value
+- For context issues, monitor `contextBuffer` usage
 
 ### 📊 Configuration Status
 
@@ -731,6 +971,141 @@ To view current configuration from Serial Monitor:
 [ConfigManager] Boot count: 5
 ```
 
+### 📷 Camera Debug
+
+To debug camera issues:
+1. Check camera initialization in Serial Monitor
+2. Verify camera_pins.h matches your board
+3. Test with `snap` command
+4. Check frame buffer allocation
+5. Verify camera power and connections
+
+### 📷 Camera Compilation Errors
+
+If you encounter compilation errors related to camera functionality, follow these steps:
+
+#### **Error: `camera_config_t` was not declared in this scope**
+
+**Cause:** The camera library is not being properly included before the camera configuration code.
+
+**Solution:** The `esp32.ino` file has been updated to fix this issue. The camera library is now included at the top of the file, and camera pin definitions are directly in the file (not in a separate header).
+
+**If you still see this error:**
+1. **Verify the fix is applied:** Check that your `esp32.ino` file starts with:
+   ```cpp
+   // Project: TI-32 v0.1
+   // Author:  ChromaLock
+   // Target:  ESP32-CAM AI Thinker
+
+   // ==========================================
+   // 1. ENABLE CAMERA (MUST BE FIRST)
+   // ==========================================
+   #define CAMERA
+   #define CAMERA_MODEL_AI_THINKER // Has PSRAM
+
+   // ==========================================
+   // 2. INCLUDES
+   // ==========================================
+   #include <Arduino.h>
+   #include "esp_camera.h" // This library is built-in to the ESP32 Board package
+   ```
+
+2. **Check camera pin definitions:** Ensure the pin definitions are present:
+   ```cpp
+   // ==========================================
+   // 3. CAMERA PIN DEFINITIONS (AI THINKER)
+   // ==========================================
+   #ifdef CAMERA
+     #define PWDN_GPIO_NUM     32
+     #define RESET_GPIO_NUM    -1
+     #define XCLK_GPIO_NUM     0
+     #define SIOD_GPIO_NUM     26
+     #define SIOC_GPIO_NUM     27
+     
+     #define Y9_GPIO_NUM       35
+     #define Y8_GPIO_NUM       34
+     #define Y7_GPIO_NUM       39
+     #define Y6_GPIO_NUM       36
+     #define Y5_GPIO_NUM       21
+     #define Y4_GPIO_NUM       19
+     #define Y3_GPIO_NUM       18
+     #define Y2_GPIO_NUM       5
+     #define VSYNC_GPIO_NUM    25
+     #define HREF_GPIO_NUM     23
+     #define PCLK_GPIO_NUM     22
+   #endif
+   ```
+
+3. **Verify board selection:** In Arduino IDE, go to **Tools → Board** and ensure **AI Thinker ESP32-CAM** is selected.
+
+4. **Check library installation:** The `esp_camera.h` library should be included with the ESP32 Arduino core. If missing:
+   - Go to **Tools → Board → Boards Manager**
+   - Search for "esp32" and ensure it's installed
+   - Restart Arduino IDE
+
+#### **Error: `esp_camera.h` not found**
+
+**Cause:** The ESP32 Arduino core is not properly installed.
+
+**Solution:**
+1. Open Arduino IDE
+2. Go to **File → Preferences**
+3. In "Additional Board Manager URLs", add:
+   ```
+   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+   ```
+4. Go to **Tools → Board → Boards Manager**
+5. Search for "esp32" and install the latest version
+6. Restart Arduino IDE
+
+#### **Error: `Y2_GPIO_NUM` was not declared in this scope**
+
+**Cause:** Camera pin definitions are missing or not properly defined.
+
+**Solution:** This error should be resolved by the fix applied to `esp32.ino`. If you still see this error:
+1. Verify the camera pin definitions are present in your `esp32.ino` file
+2. Ensure the `#define CAMERA` is at the very top of the file
+3. Check that the pin definitions are wrapped in `#ifdef CAMERA`
+
+#### **General Camera Compilation Tips**
+
+1. **Clean build:** After making changes, do a clean build:
+   - **Sketch → Clean** (or **Project → Clean** in some IDEs)
+   - Then try compiling again
+
+2. **Check for duplicate definitions:** If you have both `camera_pins.h` and pin definitions in `esp32.ino`, remove the `camera_pins.h` include to avoid conflicts.
+
+3. **Verify ESP32 core version:** Use ESP32 Arduino core version 2.0.x or later for best camera support.
+
+4. **Check memory usage:** ESP32-CAM has limited memory. If you get "Sketch too large" errors, consider:
+   - Disabling unused features
+   - Reducing image quality settings
+   - Using a smaller frame size
+
+5. **Serial monitor debugging:** Always check the Serial Monitor (115200 baud) for detailed error messages during compilation and runtime.
+
+---
+
+### 📊 Configuration Status
+
+To view current configuration from Serial Monitor:
+```
+[ConfigManager] Retrieved SSID: MyHomeWiFi
+[ConfigManager] Retrieved WiFi password
+[ConfigManager] Retrieved Ngrok URL: https://c7532afaf9b0.ngrok-free.app
+[ConfigManager] WiFi connected status: true
+[ConfigManager] Boot count: 5
+```
+
+### 📷 Camera Debug
+
+To debug camera issues:
+1. Check camera initialization in Serial Monitor
+2. Verify camera_pins.h matches your board
+3. Test with `snap` command
+4. Check frame buffer allocation
+5. Verify camera power and connections
+
 ---
 
 ## 📚 Additional Resources
@@ -739,47 +1114,8 @@ To view current configuration from Serial Monitor:
 - [ESP32-CAM Pinout Reference](https://randomnerdtutorials.com/esp32-cam-ai-thinker-pinout/)
 - [Google Gemini API Documentation](https://ai.google.dev/docs)
 - [Ngrok Documentation](https://ngrok.com/docs)
-- [Arduino WebServer Library](https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WebServer)
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-<div align="center">
-
-**Made with ❤️ for the TI Calculator Community**
-
-⭐ Star this repo if you found it helpful!
-
-</div>
-
-| Problem | Likely Cause | Solution |
-|---------|--------------|----------|
-| `"Error in Xmit"` | Wiring issue | Check resistors and ensure ESP32 is powered on |
-| `"Waiting..."` (Forever) | WiFi stuck | Check Serial Monitor to see if WiFi connected successfully |
-| Brownout Detector Error | Low Power | ESP32-CAM is power-hungry. Use a better USB cable/power source |
-| No Response | API Limit | Check if your Google Gemini API quota is exceeded |
-| Gibberish on Calculator | Baud Rate Mismatch | Verify DBus timing in code matches TI protocol specs |
-| ESP32 Won't Flash | GPIO 0 Not Grounded | Ensure GPIO 0 is connected to GND during upload |
-
-### 🐛 Debug Tips
-
-- Always check the **Serial Monitor** first for detailed logging
-- Verify all connections with a multimeter
-- Try a different USB cable or power source
-- Test the calculator's I/O port with another link cable first
-
----
-
-## 📚 Additional Resources
-
-- [TI-84 Plus Link Protocol Documentation](http://merthsoft.com/linkguide/ti83+/packet.html)
-- [ESP32-CAM Pinout Reference](https://randomnerdtutorials.com/esp32-cam-ai-thinker-pinout/)
-- [Google Gemini API Documentation](https://ai.google.dev/docs)
+- [Arduino WebServer Library](https://github.com/espressif/arduino-esp32/tree/master/libraries/WebServer)
+- [ESP32 Camera Driver](https://github.com/espressif/esp32-camera)
 
 ---
 

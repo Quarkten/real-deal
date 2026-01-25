@@ -76,196 +76,194 @@ public:
   // ========================================================================
 
   void handleRoot() {
-    String html = R"(
-<!DOCTYPE html>
-<html>
-<head>
-  <title>ESP32 OTA Update</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: 50px auto;
-      padding: 20px;
-      background: #f5f5f5;
-    }
-    .container {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    h1 {
-      color: #333;
-      text-align: center;
-    }
-    .status {
-      background: #e3f2fd;
-      padding: 10px;
-      border-radius: 4px;
-      margin: 10px 0;
-      border-left: 4px solid #2196F3;
-    }
-    .form-group {
-      margin: 15px 0;
-    }
-    label {
-      display: block;
-      margin-bottom: 5px;
-      font-weight: bold;
-      color: #555;
-    }
-    input[type="file"] {
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      width: 100%;
-      box-sizing: border-box;
-    }
-    button {
-      background: #4CAF50;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-      width: 100%;
-    }
-    button:hover {
-      background: #45a049;
-    }
-    .progress-container {
-      display: none;
-      margin: 15px 0;
-    }
-    .progress-bar {
-      width: 100%;
-      height: 20px;
-      background: #ddd;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%;
-      background: #4CAF50;
-      width: 0%;
-      transition: width 0.3s;
-    }
-    .progress-text {
-      text-align: center;
-      font-size: 14px;
-      color: #666;
-      margin-top: 5px;
-    }
-    .success {
-      background: #c8e6c9;
-      color: #2e7d32;
-      border-left-color: #4CAF50;
-    }
-    .error {
-      background: #ffcdd2;
-      color: #c62828;
-      border-left-color: #f44336;
-    }
-    .info {
-      background: #fff3e0;
-      color: #e65100;
-      border-left-color: #FF9800;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>ESP32 Firmware Update</h1>
-    
-    <div class="status info">
-      <strong>Ready for update</strong><br>
-      Select a .bin firmware file and click Upload
-    </div>
-
-    <div class="form-group">
-      <label for="firmware">Firmware File (.bin):</label>
-      <input type="file" id="firmware" accept=".bin" required>
-    </div>
-
-    <button onclick="uploadFirmware()">Upload Firmware</button>
-
-    <div class="progress-container" id="progressContainer">
-      <div class="progress-bar">
-        <div class="progress-fill" id="progressFill"></div>
-      </div>
-      <div class="progress-text" id="progressText">0%</div>
-    </div>
-
-    <div id="statusDiv"></div>
-  </div>
-
-  <script>
-    function uploadFirmware() {
-      const fileInput = document.getElementById('firmware');
-      const file = fileInput.files[0];
-      
-      if (!file) {
-        showStatus('Please select a file', 'error');
-        return;
-      }
-
-      if (!file.name.endsWith('.bin')) {
-        showStatus('Please select a .bin file', 'error');
-        return;
-      }
-
-      const xhr = new XMLHttpRequest();
-      const formData = new FormData();
-      formData.append('firmware', file);
-
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percentComplete = (e.loaded / e.total) * 100;
-          updateProgress(percentComplete);
-        }
-      });
-
-      xhr.addEventListener('load', () => {
-        if (xhr.status === 200) {
-          showStatus('Update successful! Device will restart...', 'success');
-          setTimeout(() => {
-            showStatus('Reconnecting...', 'info');
-          }, 2000);
-        } else {
-          showStatus('Update failed: ' + xhr.responseText, 'error');
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        showStatus('Upload error', 'error');
-      });
-
-      xhr.addEventListener('abort', () => {
-        showStatus('Upload aborted', 'error');
-      });
-
-      showStatus('Uploading...', 'info');
-      document.getElementById('progressContainer').style.display = 'block';
-      xhr.open('POST', '/update');
-      xhr.send(formData);
-    }
-
-    function updateProgress(percent) {
-      document.getElementById('progressFill').style.width = percent + '%';
-      document.getElementById('progressText').textContent = Math.round(percent) + '%';
-    }
-
-    function showStatus(message, type) {
-      const div = document.getElementById('statusDiv');
-      div.innerHTML = '<div class="status ' + type + '">' + message + '</div>';
-    }
-  </script>
-</body>
-</html>
-)";
+    String html = "<!DOCTYPE html>\n"
+                  "<html>\n"
+                  "<head>\n"
+                  "  <title>ESP32 OTA Update</title>\n"
+                  "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+                  "  <style>\n"
+                  "    body {\n"
+                  "      font-family: Arial, sans-serif;\n"
+                  "      max-width: 600px;\n"
+                  "      margin: 50px auto;\n"
+                  "      padding: 20px;\n"
+                  "      background: #f5f5f5;\n"
+                  "    }\n"
+                  "    .container {\n"
+                  "      background: white;\n"
+                  "      padding: 20px;\n"
+                  "      border-radius: 8px;\n"
+                  "      box-shadow: 0 2px 4px rgba(0,0,0,0.1);\n"
+                  "    }\n"
+                  "    h1 {\n"
+                  "      color: #333;\n"
+                  "      text-align: center;\n"
+                  "    }\n"
+                  "    .status {\n"
+                  "      background: #e3f2fd;\n"
+                  "      padding: 10px;\n"
+                  "      border-radius: 4px;\n"
+                  "      margin: 10px 0;\n"
+                  "      border-left: 4px solid #2196F3;\n"
+                  "    }\n"
+                  "    .form-group {\n"
+                  "      margin: 15px 0;\n"
+                  "    }\n"
+                  "    label {\n"
+                  "      display: block;\n"
+                  "      margin-bottom: 5px;\n"
+                  "      font-weight: bold;\n"
+                  "      color: #555;\n"
+                  "    }\n"
+                  "    input[type=\"file\"] {\n"
+                  "      padding: 8px;\n"
+                  "      border: 1px solid #ddd;\n"
+                  "      border-radius: 4px;\n"
+                  "      width: 100%;\n"
+                  "      box-sizing: border-box;\n"
+                  "    }\n"
+                  "    button {\n"
+                  "      background: #4CAF50;\n"
+                  "      color: white;\n"
+                  "      padding: 10px 20px;\n"
+                  "      border: none;\n"
+                  "      border-radius: 4px;\n"
+                  "      cursor: pointer;\n"
+                  "      font-size: 16px;\n"
+                  "      width: 100%;\n"
+                  "    }\n"
+                  "    button:hover {\n"
+                  "      background: #45a049;\n"
+                  "    }\n"
+                  "    .progress-container {\n"
+                  "      display: none;\n"
+                  "      margin: 15px 0;\n"
+                  "    }\n"
+                  "    .progress-bar {\n"
+                  "      width: 100%;\n"
+                  "      height: 20px;\n"
+                  "      background: #ddd;\n"
+                  "      border-radius: 4px;\n"
+                  "      overflow: hidden;\n"
+                  "    }\n"
+                  "    .progress-fill {\n"
+                  "      height: 100%;\n"
+                  "      background: #4CAF50;\n"
+                  "      width: 0%;\n"
+                  "      transition: width 0.3s;\n"
+                  "    }\n"
+                  "    .progress-text {\n"
+                  "      text-align: center;\n"
+                  "      font-size: 14px;\n"
+                  "      color: #666;\n"
+                  "      margin-top: 5px;\n"
+                  "    }\n"
+                  "    .success {\n"
+                  "      background: #c8e6c9;\n"
+                  "      color: #2e7d32;\n"
+                  "      border-left-color: #4CAF50;\n"
+                  "    }\n"
+                  "    .error {\n"
+                  "      background: #ffcdd2;\n"
+                  "      color: #c62828;\n"
+                  "      border-left-color: #f44336;\n"
+                  "    }\n"
+                  "    .info {\n"
+                  "      background: #fff3e0;\n"
+                  "      color: #e65100;\n"
+                  "      border-left-color: #FF9800;\n"
+                  "    }\n"
+                  "  </style>\n"
+                  "</head>\n"
+                  "<body>\n"
+                  "  <div class=\"container\">\n"
+                  "    <h1>ESP32 Firmware Update</h1>\n"
+                  "    \n"
+                  "    <div class=\"status info\">\n"
+                  "      <strong>Ready for update</strong><br>\n"
+                  "      Select a .bin firmware file and click Upload\n"
+                  "    </div>\n"
+                  "\n"
+                  "    <div class=\"form-group\">\n"
+                  "      <label for=\"firmware\">Firmware File (.bin):</label>\n"
+                  "      <input type=\"file\" id=\"firmware\" accept=\".bin\" required>\n"
+                  "    </div>\n"
+                  "\n"
+                  "    <button onclick=\"uploadFirmware()\">Upload Firmware</button>\n"
+                  "\n"
+                  "    <div class=\"progress-container\" id=\"progressContainer\">\n"
+                  "      <div class=\"progress-bar\">\n"
+                  "        <div class=\"progress-fill\" id=\"progressFill\"></div>\n"
+                  "      </div>\n"
+                  "      <div class=\"progress-text\" id=\"progressText\">0%</div>\n"
+                  "    </div>\n"
+                  "\n"
+                  "    <div id=\"statusDiv\"></div>\n"
+                  "  </div>\n"
+                  "\n"
+                  "  <script>\n"
+                  "    function uploadFirmware() {\n"
+                  "      const fileInput = document.getElementById('firmware');\n"
+                  "      const file = fileInput.files[0];\n"
+                  "      \n"
+                  "      if (!file) {\n"
+                  "        showStatus('Please select a file', 'error');\n"
+                  "        return;\n"
+                  "      }\n"
+                  "\n"
+                  "      if (!file.name.endsWith('.bin')) {\n"
+                  "        showStatus('Please select a .bin file', 'error');\n"
+                  "        return;\n"
+                  "      }\n"
+                  "\n"
+                  "      const xhr = new XMLHttpRequest();\n"
+                  "      const formData = new FormData();\n"
+                  "      formData.append('firmware', file);\n"
+                  "\n"
+                  "      xhr.upload.addEventListener('progress', (e) => {\n"
+                  "        if (e.lengthComputable) {\n"
+                  "          const percentComplete = (e.loaded / e.total) * 100;\n"
+                  "          updateProgress(percentComplete);\n"
+                  "        }\n"
+                  "      });\n"
+                  "\n"
+                  "      xhr.addEventListener('load', () => {\n"
+                  "        if (xhr.status === 200) {\n"
+                  "          showStatus('Update successful! Device will restart...', 'success');\n"
+                  "          setTimeout(() => {\n"
+                  "            showStatus('Reconnecting...', 'info');\n"
+                  "          }, 2000);\n"
+                  "        } else {\n"
+                  "          showStatus('Update failed: ' + xhr.responseText, 'error');\n"
+                  "        }\n"
+                  "      });\n"
+                  "\n"
+                  "      xhr.addEventListener('error', () => {\n"
+                  "        showStatus('Upload error', 'error');\n"
+                  "      });\n"
+                  "\n"
+                  "      xhr.addEventListener('abort', () => {\n"
+                  "        showStatus('Upload aborted', 'error');\n"
+                  "      });\n"
+                  "\n"
+                  "      showStatus('Uploading...', 'info');\n"
+                  "      document.getElementById('progressContainer').style.display = 'block';\n"
+                  "      xhr.open('POST', '/update');\n"
+                  "      xhr.send(formData);\n"
+                  "    }\n"
+                  "\n"
+                  "    function updateProgress(percent) {\n"
+                  "      document.getElementById('progressFill').style.width = percent + '%';\n"
+                  "      document.getElementById('progressText').textContent = Math.round(percent) + '%';\n"
+                  "    }\n"
+                  "\n"
+                  "    function showStatus(message, type) {\n"
+                  "      const div = document.getElementById('statusDiv');\n"
+                  "      div.innerHTML = '<div class=\"status ' + type + '\">' + message + '</div>';\n"
+                  "    }\n"
+                  "  </script>\n"
+                  "</body>\n"
+                  "</html>";
     server.send(200, "text/html", html);
   }
 

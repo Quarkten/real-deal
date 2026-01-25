@@ -1,11 +1,18 @@
-
 // Project: TI-32 v0.1
 // Author:  ChromaLock
-// Date:    2024
-// Target:  ESP32-CAM AI Thinker (WiFi + Bluetooth + Camera)
-// Board:   https://www.adafruit.com/product/3405
-// Note: Camera is supported on this board. WiFi and Bluetooth are available.
+// Target:  ESP32-CAM AI Thinker
 
+// ==========================================
+// 1. ENABLE CAMERA (MUST BE FIRST)
+// ==========================================
+#define CAMERA
+#define CAMERA_MODEL_AI_THINKER // Has PSRAM
+
+// ==========================================
+// 2. INCLUDES
+// ==========================================
+#include <Arduino.h>
+#include "esp_camera.h" // This library is built-in to the ESP32 Board package
 #include "./secrets.h"
 #include "./launcher.h"
 #include "./config.h"
@@ -22,19 +29,38 @@
 #include <UrlEncode.h>
 #include <Preferences.h>
 
-
-// #define CAMERA
-// Note: Camera is NOT supported on Adafruit ESP32 Feather (4MB Flash, WiFi + BT). Leave CAMERA undefined.
-
-
+// ==========================================
+// 3. CAMERA PIN DEFINITIONS (AI THINKER)
+// ==========================================
 #ifdef CAMERA
-#error "Camera is not supported on Adafruit ESP32 Feather (4MB Flash, WiFi + BT)."
+  #define PWDN_GPIO_NUM     32
+  #define RESET_GPIO_NUM    -1
+  #define XCLK_GPIO_NUM     0
+  #define SIOD_GPIO_NUM     26
+  #define SIOC_GPIO_NUM     27
+  
+  #define Y9_GPIO_NUM       35
+  #define Y8_GPIO_NUM       34
+  #define Y7_GPIO_NUM       39
+  #define Y6_GPIO_NUM       36
+  #define Y5_GPIO_NUM       21
+  #define Y4_GPIO_NUM       19
+  #define Y3_GPIO_NUM       18
+  #define Y2_GPIO_NUM       5
+  #define VSYNC_GPIO_NUM    25
+  #define HREF_GPIO_NUM     23
+  #define PCLK_GPIO_NUM     22
 #endif
 
+// ==========================================
+// 4. REST OF YOUR CODE STARTS HERE...
+// ==========================================
 
-// Pin assignments for Adafruit ESP32 Feather (4MB Flash, WiFi + BT)
-constexpr auto TIP = 26;   // GPIO1 (TX)
-constexpr auto RING = 25; // GPIO10
+// Pin assignments for ESP32-CAM AI Thinker board
+// Note: GPIO 0 and GPIO 2 are used by camera, GPIO 1 and 3 are used for serial
+// Using GPIO 12 and GPIO 13 for TIP and RING (available pins)
+constexpr auto TIP = 12;   // GPIO12 (available)
+constexpr auto RING = 13;  // GPIO13 (available)
 constexpr auto MAXHDRLEN = 16;
 constexpr auto MAXDATALEN = 4096;
 constexpr auto MAXARGS = 5;
@@ -140,8 +166,7 @@ struct Command commands[] = {
   { 18, "get_ngrok", 0, get_ngrok, false },
   { 19, "set_ngrok", 1, set_ngrok, false },
   { 20, "get_ip_address", 0, get_ip_address, false },
-  { 21, "get_power_status", 0, get_power_status, false },
-  { 20, "get_ip_address", 0, get_ip_address, false },
+  { 21, "get_power_status", 0, get_power_status, false }
 };
 
 constexpr int NUMCOMMANDS = sizeof(commands) / sizeof(struct Command);
