@@ -98,6 +98,8 @@ void connect_wifi();
 void save_wifi();
 void get_ngrok();
 void set_ngrok();
+void get_ip_address();
+void get_power_status();
 
 struct Command {
   int id;
@@ -127,10 +129,12 @@ struct Command commands[] = {
   { 18, "get_ngrok", 0, get_ngrok, false },
   { 19, "set_ngrok", 1, set_ngrok, false },
   { 20, "get_ip_address", 0, get_ip_address, false },
+  { 21, "get_power_status", 0, get_power_status, false },
+  { 20, "get_ip_address", 0, get_ip_address, false },
 };
 
 constexpr int NUMCOMMANDS = sizeof(commands) / sizeof(struct Command);
-constexpr int MAXCOMMAND = 20;
+constexpr int MAXCOMMAND = 21;
 
 uint8_t header[MAXHDRLEN];
 uint8_t data[MAXDATALEN];
@@ -908,5 +912,26 @@ void get_ip_address() {
   }
   
   strncpy(message, ipAddress.c_str(), MAXSTRARGLEN - 1);
+  setSuccess(message);
+}
+
+// ============================================================================
+// NEW COMMAND HANDLER: Get Power Status (Command ID 21)
+// ============================================================================
+
+void get_power_status() {
+  Serial.println("[CMD] get_power_status");
+  
+  String statusJson = "{";
+  statusJson += "\"powered\":" + String(isPowered ? "true" : "false") + ",";
+  statusJson += "\"deepSleep\":" + String(powerLossDetected ? "true" : "false") + ",";
+  statusJson += "\"bootCount\":" + String(bootCount) + ",";
+  statusJson += "\"wifiConnected\":" + String(wifiConnected ? "true" : "false") + ",";
+  statusJson += "\"lastIP\":\"";
+  statusJson += lastIP;
+  statusJson += "\"";
+  statusJson += "}";
+  
+  strncpy(message, statusJson.c_str(), MAXSTRARGLEN - 1);
   setSuccess(message);
 }
