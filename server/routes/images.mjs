@@ -69,5 +69,25 @@ export function images() {
     });
   });
 
+  // Endpoint for uploading and processing images
+  router.post("/upload", (req, res) => {
+    const imageData = req.body;
+    if (!imageData) {
+      res.status(400).send("No image data provided");
+      return;
+    }
+
+    // Save the image to the images directory
+    const imageName = `captured_${Date.now()}.jpg`;
+    const imagePath = path.join(imageDir, imageName);
+    fs.writeFileSync(imagePath, imageData);
+
+    // Placeholder for AI processing logic
+    // Integrate with AI processing engine here
+    console.log("Image saved and ready for AI processing:", imageName);
+
+    res.status(200).send("Image uploaded and processed successfully");
+  });
+
   return router;
 }
