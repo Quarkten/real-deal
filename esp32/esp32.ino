@@ -126,10 +126,11 @@ struct Command commands[] = {
   { 17, "save_wifi", 2, save_wifi, false },
   { 18, "get_ngrok", 0, get_ngrok, false },
   { 19, "set_ngrok", 1, set_ngrok, false },
+  { 20, "get_ip_address", 0, get_ip_address, false },
 };
 
 constexpr int NUMCOMMANDS = sizeof(commands) / sizeof(struct Command);
-constexpr int MAXCOMMAND = 19;
+constexpr int MAXCOMMAND = 20;
 
 uint8_t header[MAXHDRLEN];
 uint8_t data[MAXDATALEN];
@@ -872,22 +873,40 @@ void get_ngrok() {
 }
 
 void set_ngrok() {
- Serial.println("[CMD] set_ngrok");
- const char* ngrokUrl = strArgs[0];
- 
- Serial.print("[CMD] Setting Ngrok URL to: ");
- Serial.println(ngrokUrl);
- 
- if (!configMgr.setNgrokUrl(ngrokUrl)) {
-   setError("Invalid Ngrok URL or too long");
-   return;
- }
- 
- // Update the global currentServer variable
- strncpy(currentServer, ngrokUrl, MAX_NGROK_URL_LEN - 1);
- 
- Serial.print("[CMD] Ngrok URL updated. Will use: ");
- Serial.println(currentServer);
- 
- setSuccess("Ngrok URL updated");
+  Serial.println("[CMD] set_ngrok");
+  const char* ngrokUrl = strArgs[0];
+  
+  Serial.print("[CMD] Setting Ngrok URL to: ");
+  Serial.println(ngrokUrl);
+  
+  if (!configMgr.setNgrokUrl(ngrokUrl)) {
+    setError("Invalid Ngrok URL or too long");
+    return;
+  }
+  
+  // Update the global currentServer variable
+  strncpy(currentServer, ngrokUrl, MAX_NGROK_URL_LEN - 1);
+  
+  Serial.print("[CMD] Ngrok URL updated. Will use: ");
+  Serial.println(currentServer);
+  
+  setSuccess("Ngrok URL updated");
+}
+
+// ============================================================================
+// NEW COMMAND HANDLER: Get IP Address (Command ID 20)
+// ============================================================================
+
+void get_ip_address() {
+  Serial.println("[CMD] get_ip_address");
+  
+  String ipAddress = wifiMgr.getIPAddress();
+  
+  if (ipAddress.length() == 0 || ipAddress == "0.0.0.0") {
+    setError("Not connected to WiFi");
+    return;
+  }
+  
+  strncpy(message, ipAddress.c_str(), MAXSTRARGLEN - 1);
+  setSuccess(message);
 }
