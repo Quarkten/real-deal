@@ -8,6 +8,10 @@
 
 #include "./secrets.h"
 #include "./launcher.h"
+#include "./config.h"
+#include "./config_manager.h"
+#include "./wifi_manager.h"
+#include "./ota_manager.h"
 #include <TICL.h>
 #include <CBL2.h>
 #include <TIVar.h>
@@ -42,6 +46,13 @@ constexpr auto PASSWORD = 42069;
 CBL2 cbl;
 Preferences prefs;
 
+// Manager instances
+ConfigManager configMgr;
+WiFiManager wifiMgr(&configMgr);
+OTAManager otaMgr;
+
+// Current SERVER URL (loaded from NVS or defaults to secrets.h)
+char currentServer[MAX_NGROK_URL_LEN] = {0};
 
 // whether or not the user has entered the password
 bool unlocked = true;
@@ -82,6 +93,11 @@ void fetch_chats();
 void send_chat();
 void program_list();
 void fetch_program();
+void scan_networks();
+void connect_wifi();
+void save_wifi();
+void get_ngrok();
+void set_ngrok();
 
 struct Command {
   int id;
@@ -105,10 +121,15 @@ struct Command commands[] = {
   { 12, "send_chat", 2, send_chat, true },
   { 13, "program_list", 1, program_list, true },
   { 14, "fetch_program", 1, fetch_program, true },
+  { 15, "scan_networks", 0, scan_networks, false },
+  { 16, "connect_wifi", 2, connect_wifi, false },
+  { 17, "save_wifi", 2, save_wifi, false },
+  { 18, "get_ngrok", 0, get_ngrok, false },
+  { 19, "set_ngrok", 1, set_ngrok, false },
 };
 
 constexpr int NUMCOMMANDS = sizeof(commands) / sizeof(struct Command);
-constexpr int MAXCOMMAND = 14;
+constexpr int MAXCOMMAND = 19;
 
 uint8_t header[MAXHDRLEN];
 uint8_t data[MAXDATALEN];
@@ -183,6 +204,61 @@ void setup() {
   prefs.putUInt("boots", reboots + 1);
   prefs.end();
 
+  // ========================================================================
+  // Initialize Configuration Manager
+  // ========================================================================
+  Serial.println("[ConfigManager] Initializing...");
+  configMgr.begin();
+  configMgr.printAll();
+
+  // Load Ngrok URL from NVS, fallback to secrets.h
+  String ngrokUrl = configMgr.getNgrokUrl();
+  if (ngrokUrl.length() > 0) {
+    strncpy(currentServer, ngrokUrl.c_str(), MAX_NGROK_URL_LEN - 1);
+  } else {
+    strncpy(currentServer, SERVER, MAX_NGROK_URL_LEN - 1);
+    Serial.println("[Setup] Using fallback SERVER from secrets.h");
+  }
+  Serial.print("[Setup] Current SERVER: ");
+  Serial.println(currentServer);
+
+  // ========================================================================
+  // Connect to WiFi (with NVS credentials or fallback to secrets.h)
+  // ========================================================================
+  Serial.println("[Setup] Attempting WiFi connection...");
+  String ssid = configMgr.getSsid();
+  String pass = configMgr.getPassword();
+
+  if (ssid.length() > 0 && pass.length() > 0) {
+    Serial.println("[Setup] Using saved WiFi credentials from NVS");
+    if (wifiMgr.connectToNetwork(ssid.c_str(), pass.c_str()) != 0) {
+      Serial.println("[Setup] Failed to connect with saved credentials, trying fallback...");
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
+      while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+      }
+      Serial.println("\n[Setup] Connected with fallback credentials");
+    }
+  } else {
+    Serial.println("[Setup] No saved WiFi credentials, using fallback from secrets.h");
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    }
+    Serial.println("\n[Setup] Connected with fallback credentials");
+  }
+
+  Serial.print("[Setup] WiFi connected! IP: ");
+  Serial.println(WiFi.localIP());
+
+  // ========================================================================
+  // Initialize OTA Manager
+  // ========================================================================
+  Serial.println("[Setup] Starting OTA Web Server...");
+  otaMgr.begin();
+  otaMgr.printInfo();
 
 // Camera setup is not supported on Adafruit ESP32 Feather (4MB Flash, WiFi + BT)
 
@@ -196,6 +272,9 @@ void setup() {
 void (*queued_action)() = NULL;
 
 void loop() {
+  // Handle OTA web server requests (non-blocking)
+  otaMgr.handleClient();
+
   if (queued_action) {
     // dont ask me why you need this, but it fails otherwise.
     // probably relates to a CBL2 timeout thing?
@@ -437,7 +516,7 @@ void gpt() {
   Serial.print("prompt: ");
   Serial.println(prompt);
 
-  auto url = String(SERVER) + String("/gpt/ask?question=") + urlEncode(String(prompt));
+  auto url = String(currentServer) + String("/gpt/ask?question=") + urlEncode(String(prompt));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXHTTPRESPONSELEN, &realsize)) {
@@ -485,7 +564,7 @@ void solve() {
 
 void image_list() {
   int page = realArgs[0];
-  auto url = String(SERVER) + String("/image/list?p=") + urlEncode(String(page));
+  auto url = String(currentServer) + String("/image/list?p=") + urlEncode(String(page));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXSTRARGLEN, &realsize)) {
@@ -506,7 +585,7 @@ void fetch_image() {
   Serial.print("id: ");
   Serial.println(id);
 
-  auto url = String(SERVER) + String("/image/get?id=") + urlEncode(String(id));
+  auto url = String(currentServer) + String("/image/get?id=") + urlEncode(String(id));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXHTTPRESPONSELEN, &realsize)) {
@@ -532,7 +611,7 @@ void fetch_image() {
 void fetch_chats() {
   int room = realArgs[0];
   int page = realArgs[1];
-  auto url = String(SERVER) + String("/chats/messages?p=") + urlEncode(String(page)) + String("&c=") + urlEncode(String(room));
+  auto url = String(currentServer) + String("/chats/messages?p=") + urlEncode(String(page)) + String("&c=") + urlEncode(String(room));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXSTRARGLEN, &realsize)) {
@@ -550,7 +629,7 @@ void send_chat() {
   int room = realArgs[0];
   const char* msg = strArgs[1];
 
-  auto url = String(SERVER) + String("/chats/send?c=") + urlEncode(String(room)) + String("&m=") + urlEncode(String(msg)) + String("&id=") + urlEncode(String(CHAT_NAME));
+  auto url = String(currentServer) + String("/chats/send?c=") + urlEncode(String(room)) + String("&m=") + urlEncode(String(msg)) + String("&id=") + urlEncode(String(CHAT_NAME));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXSTRARGLEN, &realsize)) {
@@ -566,7 +645,7 @@ void send_chat() {
 
 void program_list() {
   int page = realArgs[0];
-  auto url = String(SERVER) + String("/programs/list?p=") + urlEncode(String(page));
+  auto url = String(currentServer) + String("/programs/list?p=") + urlEncode(String(page));
 
   size_t realsize = 0;
   if (makeRequest(url, response, MAXSTRARGLEN, &realsize)) {
@@ -609,7 +688,7 @@ void fetch_program() {
 
   _resetProgram();
 
-  auto url = String(SERVER) + String("/programs/get?id=") + urlEncode(String(id));
+  auto url = String(currentServer) + String("/programs/get?id=") + urlEncode(String(id));
 
   if (makeRequest(url, programData, 4096, &programLength)) {
     setError("error making request for program data");
@@ -617,7 +696,7 @@ void fetch_program() {
   }
 
   size_t realsize = 0;
-  auto nameUrl = String(SERVER) + String("/programs/get_name?id=") + urlEncode(String(id));
+  auto nameUrl = String(currentServer) + String("/programs/get_name?id=") + urlEncode(String(id));
   if (makeRequest(nameUrl, programName, 256, &realsize)) {
     setError("error making request for program name");
     return;
@@ -712,4 +791,103 @@ int sendProgramVariable(const char* name, uint8_t* program, size_t variableSize)
   Serial.print("transferred: ");
   Serial.println(name);
   return 0;
+}
+
+// ============================================================================
+// NEW COMMAND HANDLERS: WiFi & Ngrok Configuration (Commands 15-19)
+// ============================================================================
+
+void scan_networks() {
+ Serial.println("[CMD] scan_networks");
+ 
+ String networkList = wifiMgr.scanNetworks();
+ 
+ if (networkList.length() == 0) {
+   setError("No networks found");
+   return;
+ }
+ 
+ // Truncate to MAXSTRARGLEN if necessary
+ if (networkList.length() >= MAXSTRARGLEN) {
+   networkList = networkList.substring(0, MAXSTRARGLEN - 1);
+ }
+ 
+ strncpy(message, networkList.c_str(), MAXSTRARGLEN - 1);
+ setSuccess(message);
+}
+
+void connect_wifi() {
+ Serial.println("[CMD] connect_wifi");
+ const char* ssid = strArgs[0];
+ const char* password = strArgs[1];
+ 
+ Serial.print("[CMD] Attempting to connect to: ");
+ Serial.print(ssid);
+ Serial.print(" with password: ");
+ Serial.println("<hidden>");
+ 
+ if (wifiMgr.connectToNetwork(ssid, password) != 0) {
+   setError("WiFi connection failed");
+   return;
+ }
+ 
+ setSuccess("Connected to WiFi");
+}
+
+void save_wifi() {
+ Serial.println("[CMD] save_wifi");
+ const char* ssid = strArgs[0];
+ const char* password = strArgs[1];
+ 
+ Serial.print("[CMD] Saving WiFi credentials for: ");
+ Serial.println(ssid);
+ 
+ if (!configMgr.setSsid(ssid)) {
+   setError("Failed to save SSID");
+   return;
+ }
+ 
+ if (!configMgr.setPassword(password)) {
+   setError("Failed to save password");
+   return;
+ }
+ 
+ Serial.println("[CMD] WiFi credentials saved successfully");
+ setSuccess("WiFi credentials saved");
+}
+
+void get_ngrok() {
+ Serial.println("[CMD] get_ngrok");
+ 
+ String ngrokUrl = configMgr.getNgrokUrl();
+ 
+ if (ngrokUrl.length() == 0) {
+   strncpy(message, currentServer, MAXSTRARGLEN - 1);
+   setSuccess(message);
+   return;
+ }
+ 
+ strncpy(message, ngrokUrl.c_str(), MAXSTRARGLEN - 1);
+ setSuccess(message);
+}
+
+void set_ngrok() {
+ Serial.println("[CMD] set_ngrok");
+ const char* ngrokUrl = strArgs[0];
+ 
+ Serial.print("[CMD] Setting Ngrok URL to: ");
+ Serial.println(ngrokUrl);
+ 
+ if (!configMgr.setNgrokUrl(ngrokUrl)) {
+   setError("Invalid Ngrok URL or too long");
+   return;
+ }
+ 
+ // Update the global currentServer variable
+ strncpy(currentServer, ngrokUrl, MAX_NGROK_URL_LEN - 1);
+ 
+ Serial.print("[CMD] Ngrok URL updated. Will use: ");
+ Serial.println(currentServer);
+ 
+ setSuccess("Ngrok URL updated");
 }
