@@ -4,9 +4,11 @@
 #include <WebServer.h>
 #include <Update.h>
 #include "config.h"
+#include "wifi_manager.h"
+#include "config_manager.h"
 
 // ============================================================================
-// OTA Manager - Handles Web-Based Firmware Updates
+// OTA Manager - Handles Web-Based Firmware Updates and WiFi/Ngrok Control
 // ============================================================================
 
 class OTAManager {
@@ -14,9 +16,23 @@ private:
   WebServer server;
   bool isUpdating = false;
   int updateProgress = 0;
+  WiFiManager* wifiMgr;
+  ConfigManager* configMgr;
 
 public:
-  OTAManager() : server(OTA_SERVER_PORT) {}
+  OTAManager(WiFiManager* wm, ConfigManager* cm) : server(OTA_SERVER_PORT), wifiMgr(wm), configMgr(cm) {}
+
+  // Helper to send JSON responses
+  void sendJsonResponse(int status, bool success, const String& message, const String& data = "{}") {
+    String json = "{\"success\":";
+    json += success ? "true" : "false";
+    json += ",\"message\":\"";
+    json += message;
+    json += "\",\"data\":";
+    json += data;
+    json += "}";
+    server.send(status, "application/json", json);
+  }
 
   // ========================================================================
   // Setup and Configuration
@@ -31,6 +47,16 @@ public:
     server.on(OTA_UPDATE_PATH, HTTP_GET, [this]() { handleUpdateGet(); });
     server.on(OTA_UPDATE_PATH, HTTP_POST, [this]() { handleUpdatePost(); }, [this]() { handleUpload(); });
     server.on(OTA_STATUS_PATH, HTTP_GET, [this]() { handleStatus(); });
+
+    // WiFi Control Endpoints
+    server.on("/wifi/status", HTTP_GET, [this]() { handleWifiStatus(); });
+    server.on("/wifi/scan", HTTP_GET, [this]() { handleWifiScan(); });
+    server.on("/wifi/connect", HTTP_POST, [this]() { handleWifiConnect(); });
+    server.on("/wifi/save", HTTP_POST, [this]() { handleWifiSave(); });
+
+    // Ngrok Control Endpoints
+    server.on("/ngrok/url", HTTP_GET, [this]() { handleNgrokGet(); });
+    server.on("/ngrok/url", HTTP_POST, [this]() { handleNgrokSet(); });
 
     server.begin();
     Serial.println("[OTAManager] Web server started");
@@ -322,6 +348,147 @@ public:
     json += "\"freeSpace\":" + String(ESP.getFreeSketchSpace());
     json += "}";
     server.send(200, "application/json", json);
+  }
+
+  // ========================================================================
+  // WiFi Control Endpoints
+  // ========================================================================
+
+  void handleWifiStatus() {
+    if (!wifiMgr) {
+      sendJsonResponse(500, false, "WiFi manager not initialized");
+      return;
+    }
+
+    String statusJson = "{";
+    statusJson += "\"connected\":" + String(wifiMgr->isConnected() ? "true" : "false") + ",";
+    statusJson += "\"ipAddress\":\"";
+    statusJson += wifiMgr->getIPAddress();
+    statusJson += "\",\"ssid\":\"";
+    statusJson += wifiMgr->getCurrentSSID();
+    statusJson += "\",\"signalStrength\":";
+    statusJson += String(wifiMgr->getSignalStrength());
+    statusJson += "}";
+
+    sendJsonResponse(200, true, "WiFi status retrieved", statusJson);
+  }
+
+  void handleWifiScan() {
+    if (!wifiMgr) {
+      sendJsonResponse(500, false, "WiFi manager not initialized");
+      return;
+    }
+
+    String networks = wifiMgr->scanNetworks();
+    String networksJson = "{";
+    networksJson += "\"networks\":[ ";
+
+    if (networks.length() > 0) {
+      int start = 0;
+      int end = networks.indexOf('|');
+      bool first = true;
+
+      while (end != -1 || start < networks.length()) {
+        if (!first) networksJson += ",";
+        first = false;
+
+        String ssid = networks.substring(start, end == -1 ? networks.length() : end);
+        networksJson += "\"";
+        networksJson += ssid;
+        networksJson += "\"";
+
+        if (end == -1) break;
+        start = end + 1;
+        end = networks.indexOf('|', start);
+      }
+    }
+
+    networksJson += " ]}";
+    sendJsonResponse(200, true, "WiFi scan completed", networksJson);
+  }
+
+  void handleWifiConnect() {
+    if (!wifiMgr) {
+      sendJsonResponse(500, false, "WiFi manager not initialized");
+      return;
+    }
+
+    if (!server.hasArg("ssid") || !server.hasArg("password")) {
+      sendJsonResponse(400, false, "Missing ssid or password parameter");
+      return;
+    }
+
+    String ssid = server.arg("ssid");
+    String password = server.arg("password");
+
+    if (wifiMgr->connectToNetwork(ssid.c_str(), password.c_str()) != 0) {
+      sendJsonResponse(500, false, "Failed to connect to WiFi network");
+      return;
+    }
+
+    sendJsonResponse(200, true, "Connected to WiFi network");
+  }
+
+  void handleWifiSave() {
+    if (!wifiMgr || !configMgr) {
+      sendJsonResponse(500, false, "Managers not initialized");
+      return;
+    }
+
+    if (!server.hasArg("ssid") || !server.hasArg("password")) {
+      sendJsonResponse(400, false, "Missing ssid or password parameter");
+      return;
+    }
+
+    String ssid = server.arg("ssid");
+    String password = server.arg("password");
+
+    if (!configMgr->setSsid(ssid.c_str()) || !configMgr->setPassword(password.c_str())) {
+      sendJsonResponse(500, false, "Failed to save WiFi credentials");
+      return;
+    }
+
+    sendJsonResponse(200, true, "WiFi credentials saved successfully");
+  }
+
+  // ========================================================================
+  // Ngrok Control Endpoints
+  // ========================================================================
+
+  void handleNgrokGet() {
+    if (!configMgr) {
+      sendJsonResponse(500, false, "Config manager not initialized");
+      return;
+    }
+
+    String ngrokUrl = configMgr->getNgrokUrl();
+    String urlJson = "{";
+    urlJson += "\"ngrokUrl\":\"";
+    urlJson += ngrokUrl;
+    urlJson += "\"}";
+
+    sendJsonResponse(200, true, "Ngrok URL retrieved", urlJson);
+  }
+
+  void handleNgrokSet() {
+    if (!configMgr) {
+      sendJsonResponse(500, false, "Config manager not initialized");
+      return;
+    }
+
+    if (!server.hasArg("url")) {
+      sendJsonResponse(400, false, "Missing url parameter");
+      return;
+    }
+
+    String url = server.arg("url");
+
+    if (!configMgr->setNgrokUrl(url.c_str())) {
+      sendJsonResponse(500, false, "Failed to save Ngrok URL");
+      return;
+    }
+
+    sendJsonResponse(200, true, "Ngrok URL saved successfully");
   }
 
   // ========================================================================

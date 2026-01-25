@@ -418,6 +418,7 @@ After initial setup, you can update the ESP32 firmware without physical access:
 1. **Find your ESP32's local IP address:**
    - Check the Serial Monitor for: `IP: 192.168.1.XXX`
    - Or run the `WIFIPASS` program and check the connection status
+   - **NEW:** Use the Node.js scripts for easy IP detection (see below)
 
 2. **Open the OTA Update page in your browser:**
    - Navigate to: `http://192.168.1.XXX/update` (replace with your ESP32's IP)
@@ -437,6 +438,92 @@ After initial setup, you can update the ESP32 firmware without physical access:
 > - If you can't access the OTA page, verify the ESP32 is connected to WiFi
 > - Check your firewall settings if the page doesn't load
 > - The ESP32 must have enough free flash space for the new firmware
+
+### Step 4: Use Node.js Scripts for WiFi Management (NEW)
+
+The project now includes powerful Node.js scripts for managing WiFi connections and displaying IP addresses from your computer:
+
+#### 📋 Available Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| **IPADDRESS.mjs** | Get ESP32's current IP address | `node IPADDRESS.mjs [esp32_ip]` |
+| **WIFISCAN.mjs** | Scan WiFi networks and show IP | `node WIFISCAN.mjs [esp32_ip]` |
+| **WIFIPASS.mjs** | Connect to WiFi and display IP | `node WIFIPASS.mjs [esp32_ip] [ssid] [password]` |
+| **NGROKSET.mjs** | Manage Ngrok URL and show IP | `node NGROKSET.mjs [esp32_ip] [new_url]` |
+
+#### 🚀 Quick Start
+
+1. **Install dependencies:**
+   ```bash
+   npm install node-fetch
+   ```
+
+2. **Get ESP32 IP address:**
+   ```bash
+   node IPADDRESS.mjs 192.168.1.100
+   ```
+
+3. **Scan available WiFi networks:**
+   ```bash
+   node WIFISCAN.mjs 192.168.1.100
+   ```
+
+4. **Connect to WiFi network:**
+   ```bash
+   node WIFIPASS.mjs 192.168.1.100 "MyWiFi" "mypassword"
+   ```
+
+5. **Manage Ngrok URL:**
+   ```bash
+   node NGROKSET.mjs 192.168.1.100 "https://abc123.ngrok-free.app"
+   ```
+
+#### 📡 Typical Workflow
+
+```bash
+# 1. Connect to ESP32's initial WiFi (if configured)
+# 2. Scan available networks
+node WIFISCAN.mjs 192.168.1.100
+
+# 3. Connect to your WiFi network
+node WIFIPASS.mjs 192.168.1.100 "MyHomeWiFi" "securepassword"
+
+# 4. Set Ngrok URL
+node NGROKSET.mjs 192.168.1.100 "https://my-ngrok-url.ngrok-free.app"
+
+# 5. Get current IP for OTA updates
+node IPADDRESS.mjs 192.168.1.100
+
+# 6. Open browser to the displayed IP and upload firmware
+```
+
+#### 🎯 Benefits
+
+- **Instant IP display** without checking serial monitor
+- **Easy WiFi management** from computer without calculator
+- **Cross-platform** (works on Windows, macOS, Linux)
+- **Clear OTA instructions** with automatic IP detection
+- **Backward compatible** with existing calculator programs
+
+> [!TIP]
+> **Pro Tip:** Use these scripts when you need to quickly find the ESP32's IP address for OTA updates or when setting up WiFi for the first time. The scripts provide a more convenient alternative to using the calculator programs.
+
+> [!NOTE]
+> **Security:** The HTTP endpoints are only accessible on your local network. No authentication is required for local access, but sensitive data (WiFi passwords) are transmitted in plaintext. For production use, consider adding authentication.
+
+#### 🔧 HTTP API Reference
+
+The ESP32 now exposes these HTTP endpoints:
+
+- `GET /wifi/status` - Get WiFi connection status and IP address
+- `GET /wifi/scan` - Scan available WiFi networks
+- `POST /wifi/connect` - Connect to WiFi network
+- `POST /wifi/save` - Save WiFi credentials to NVS
+- `GET /ngrok/url` - Get current Ngrok URL
+- `POST /ngrok/url` - Set Ngrok URL
+
+These endpoints work alongside the existing calculator-based DBus commands, giving you flexibility in how you manage your ESP32 device.
 
 ### Step 4: Update WiFi & Ngrok Settings
 
