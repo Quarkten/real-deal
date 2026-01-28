@@ -280,15 +280,37 @@ The Raspberry Pi Pico can act as a USB-to-serial bridge, eliminating the need fo
 
 ##### **Step 1: Program the Raspberry Pi Pico**
 
-1. Download the **Picoprobe** firmware (enables the Pico to act as a programmer):
-   - Get it from: [Picoprobe Releases](https://github.com/raspberrypi/picoprobe/releases)
-   - Download `picoprobe.uf2`
+```
+// Serial Passthrough for Pico to ESP32
+// This turns the Pico into a USB-to-Serial Adapter
+
+void setup() {
+  Serial.begin(115200);  // USB Serial (Connection to Computer)
+  Serial1.begin(115200); // Hardware Serial (Connection to ESP32-CAM)
+}
+
+void loop() {
+  if (Serial.available()) {      // If data comes from Computer...
+    Serial1.write(Serial.read()); // Send it to ESP32
+  }
+  if (Serial1.available()) {     // If data comes from ESP32...
+    Serial.write(Serial1.read()); // Send it to Computer
+  }
+}
+```
 
 2. Flash the Pico:
-   - Hold the **BOOTSEL** button on the Pico while plugging it into your computer via USB
-   - The Pico will appear as a USB mass storage device called **RPI-RP2**
-   - Drag and drop `picoprobe.uf2` onto the drive
-   - The Pico will reboot automatically and now functions as a USB-to-serial adapter
+    -Unplug the ESP32-CAM for a moment. We need to prep the Pico first.
+
+    -Hold the BOOTSEL button on the Pico and plug it into your computer via USB.
+
+    -Open Arduino IDE.
+
+    -Select the board: Tools > Board > Raspberry Pi Pico. (If you don't see it, go to Boards Manager and install "Arduino       Mbed OS RP2040 Boards").
+
+    -Copy and paste this code into a new sketch:
+
+    -Upload code
 
 ##### **Step 2: Wire the Pico to ESP32-CAM**
 
