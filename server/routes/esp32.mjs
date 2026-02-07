@@ -23,10 +23,10 @@ export function esp32Routes() {
     console.log(`[Device Log] ${message}`);
   }
 
-  // Helper to wait for result
   async function waitForResult() {
     return new Promise((resolve) => {
       const start = Date.now();
+      const checkInterval = 500;
       const interval = setInterval(() => {
         if (commandResult) {
           clearInterval(interval);
@@ -37,8 +37,12 @@ export function esp32Routes() {
           clearInterval(interval);
           resolve({ error: "Command timed out" });
         }
-      }, 500);
+      }, checkInterval);
+      
+      // Ensure cleanup on promise rejection
+      return () => clearInterval(interval);
     });
+  }
   }
 
   // --- Device-Facing Endpoints ---
