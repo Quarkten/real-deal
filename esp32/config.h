@@ -39,6 +39,7 @@
 #define WIFI_SCAN_TIMEOUT    10000  // 10 seconds for WiFi scan
 #define WIFI_CONNECT_TIMEOUT 20000  // 20 seconds to connect
 #define WIFI_RECONNECT_DELAY 5000   // 5 seconds between reconnect attempts
+#define POLL_INTERVAL_MS     5000   // 5 seconds between polling attempts
 
 // ============================================================================
 // OTA Web Server Configuration

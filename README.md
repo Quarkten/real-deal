@@ -1,16 +1,16 @@
 <div align="center">
 
-# 🧮 TI-ESP-GPT
+# 🧮 TI-32 (v0.2) - Mailbox Edition
 
 ### ESP32-CAM AI Bridge for TI-84 Plus
 
-*Bringing the power of Google Gemini AI to a 20-year-old graphing calculator.*
+*Bringing the power of modern AI to a 20-year-old graphing calculator, now with World-Wide access.*
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-ESP32--CAM-green.svg)](https://github.com/espressif/arduino-esp32)
 [![Calculator](https://img.shields.io/badge/TI--84%20Plus-compatible-orange.svg)](https://education.ti.com/en/products/calculators/graphing-calculators/ti-84-plus)
 
-[Features](#-features) • [Hardware Setup](#-hardware-setup) • [Installation](#-installation) • [Usage](#-usage) • [Troubleshooting](#-troubleshooting)
+[Features](#-features) • [Hardware Setup](#-hardware-setup) • [Installation](#-installation) • [Dashboard](#-device-dashboard) • [Reorganization](#-project-structure)
 
 ---
 
@@ -18,23 +18,21 @@
 
 ## 📖 Overview
 
-This project creates a bridge between the **TI-84 Plus** (non-CE) graphing calculator and the modern internet. By connecting the calculator's 2.5mm I/O port to an ESP32-CAM microcontroller, you can send text prompts via the DBus protocol. The ESP32 connects to WiFi, processes these requests, queries the **Google Gemini API**, and sends the AI's response back to your calculator screen.
+The **TI-32** project connects your **TI-84 Plus** graphing calculator to the internet. This version (v0.2) introduces a **Mailbox/Polling architecture**, allowing the Server and ESP32 to communicate even if they are on completely different Wi-Fi networks. You can now control and monitor your calculator bridge from anywhere in the world via a web-based dashboard.
 
-### 🔄 How It Works
+### 🔄 New Mailbox Architecture
 
 ```mermaid
 graph LR
-    A[TI-84 Plus] -->|DBus Protocol| B[ESP32-CAM]
-    B -->|WiFi| C[Google Gemini API]
-    C -->|AI Response| B
-    B -->|DBus Protocol| A
+    A[TI-84 Plus] <-->|DBus| B[ESP32-CAM]
+    B <-->|Polling via Ngrok| C[Node.js Server]
+    C <-->|HTTPS| D[Web Dashboard]
 ```
 
-1. **User Input** - Type a question on the calculator using the `PIGPT` program
-2. **Transmission** - Calculator sends the string to ESP32-CAM via `Send()` command
-3. **Processing** - ESP32 receives the packet and forwards the prompt to Google Gemini via WiFi
-4. **Response** - Gemini generates a concise answer
-5. **Return** - ESP32 sends the answer back to calculator variable `Str0` via `GetCalc()`
+1. **Polling** - The ESP32 checks the server every 5 seconds for pending commands.
+2. **Mailbox** - The server queues commands (like WiFi scans) and holds them until the ESP32 fetches them.
+3. **Execution** - The ESP32 executes the command and POSTs the result back to the server.
+4. **Visibility** - The Web Dashboard shows real-time device logs and status.
 
 ---
 
@@ -42,1115 +40,90 @@ graph LR
 
 | Feature | Description |
 |---------|-------------|
-| 🔌 **Direct Connection** | Uses the calculator's built-in 2.5mm I/O port |
-| 🤖 **Google Gemini AI** | Integrates state-of-the-art LLM capabilities |
-| 📡 **Full DBus Protocol** | Complete implementation of the TI Link Protocol (bit-banging) |
-| ⚡ **Microcontroller Power** | Fast boot time, low power usage, no OS required |
-| 📦 **Portable** | Can run off a small battery bank |
-| 🛠️ **Built-in Diagnostics** | Serial monitor logging for debugging |
-| 🔋 **Power Management** | Automatic deep sleep/wake to extend battery life |
-| 📷 **Camera Support** | Full camera functionality for ESP32-CAM AI Thinker board |
-| 🖼️ **Multi-Modal AI** | Combine text and image inputs for richer interactions |
-| 🎯 **Real-Time Feedback** | Focus confirmation and lighting suggestions during capture |
-| 🔄 **Context Management** | Maintains conversation context between text and image inputs |
-| 🌐 **Image Processing** | Node.js backend for image analysis and AI processing |
-| 📸 **Image Capture** | Capture images via calculator commands |
-| 📊 **Power Status** | Monitor power state, boot count, and WiFi status |
+| 🌐 **Mailbox Logic** | Robust communication across different networks and firewalls. |
+| 📊 **Device Dashboard** | Chat-style UI for real-time logging and control. |
+| 📡 **Remote WiFi Scan** | Scan for networks around the ESP32 from your browser. |
+| 🤖 **AI Integration** | Query ChatGPT/Gemini directly from your calculator. |
+| 📷 **Remote Camera** | Trigger camera captures and view results remotely. |
+| 📂 **Smart Organization** | Clean project structure with dedicated `cli/`, `build/`, and `docs/` folders. |
 
 ---
 
-## 🛠 Hardware Setup
+## 🖥 Device Dashboard (NEW)
 
-> [!WARNING]
-> **VOLTAGE WARNING**  
-> The TI-84 Plus uses 5V logic, while the ESP32-CAM uses 3.3V logic.  
-> While many users successfully connect them directly, **series resistors (1kΩ) are highly recommended** to protect your ESP32 from over-current. **Proceed at your own risk.**
+The new web interface allows you to monitor and control your ESP32-CAM without needing a serial cable.
 
-### 📦 Required Components
+### Accessing the Dashboard
+1. Start your server: `npm start`
+2. Start Ngrok: `./ngrok.exe http 8080`
+3. Navigate to: `http://localhost:8080/esp32.html` (or your public Ngrok URL)
 
-| Component | Qty | Purpose |
-|-----------|-----|---------|
-| ESP32-CAM | 1 | Main microcontroller (AI Thinker model) |
-| FTDI Programmer **OR** Raspberry Pi Pico | 1 | Required to upload code to the ESP32-CAM |
-| 2.5mm Stereo Jack | 1 | Male connector (or cut an old aux/link cable) |
-| Resistors (Recommended) | 2 | 1kΩ - 2.2kΩ (Protects GPIO) |
-| TI-84 Plus | 1 | Non-CE version only (monochrome screen) |
-| Micro USB Cable | 1 | For programming the Raspberry Pi Pico (if using Pico method) |
-
-### 🔌 Wiring Guide
-
-The TI-84 Plus uses a 3-wire serial protocol (TIP, RING, GND). We will use GPIO 12 and 13 on the ESP32-CAM.
-
-#### Wiring Table
-
-| ESP32-CAM Pin | Description | Connection Type | Connects to Calculator |
-|---------------|-------------|-----------------|------------------------|
-| `GND` | Ground | Direct Wire | **Sleeve** (Base of connector) |
-| `GPIO 12` | Data 1 | Via 1kΩ Resistor | **TIP** (Tip of connector) |
-| `GPIO 13` | Data 2 | Via 1kΩ Resistor | **RING** (Middle ring) |
-| `5V / 3.3V` | Power | To Power Source | — |
-
-#### Visual Reference
-
-- **TIP** (Red/White): The very tip of the 2.5mm jack
-- **RING** (White/Red): The middle section of the jack
-- **GND** (Copper): The base/sleeve of the jack
-
-#### Connection Diagram
-
-```
-       ESP32-CAM                    Calculator 2.5mm Jack
-    +--------------+                    +---------+
-    |              |                    |         |
-    |          GND |--------------------| SLEEVE  | (Ground)
-    |              |                    |         |
-    |              |      1kΩ Res       |         |
-    |      GPIO 12 |-----/\/\/\---------| TIP     | (Data 1)
-    |              |                    |         |
-    |              |      1kΩ Res       |         |
-    |      GPIO 13 |-----/\/\/\---------| RING    | (Data 2)
-    |              |                    |         |
-    +--------------+                    +---------+
-```
+### Dashboard Features
+- **Device Logs**: Real-time view of what the ESP32 is doing (e.g., `[10:05] Scanning networks...`).
+- **WiFi Controls**: Trigger a detailed WiFi scan remotely.
+- **Status Check**: View Uptime, Free Heap, Boot Count, and Signal Strength.
+- **Ngrok Update**: Remotely update the Ngrok URL the device should point to.
 
 ---
 
-## 💻 Installation
+## 📂 Project Structure
 
-### 1️⃣ Prepare Arduino IDE
+The project has been reorganized for better maintainability:
 
-1. Install the [Arduino IDE](https://www.arduino.cc/en/software)
-2. Add ESP32 support:
-   - Go to **File → Preferences**
-   - In "Additional Board Manager URLs", add:
-     ```
-     https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-     ```
-   - Go to **Tools → Board → Boards Manager**, search for "esp32", and install
-3. Select your board: **Tools → Board → AI Thinker ESP32-CAM**
+- **`cli/`**: Command-line utility scripts (`WIFISCAN.mjs`, `NGROKSET.mjs`, etc.)
+- **`build/`**: Build and preparation scripts (`genfiles.sh`, `prepareimage.mjs`, etc.)
+- **`docs/`**: Documentation, plans, and implementation details.
+- **`server/`**: The Node.js backend logic.
+- **`esp32/`**: ESP32-CAM firmware source code.
+- **`programs/`**: TI-BASIC programs for the calculator.
+- **`tests/`**: Automated test scripts.
 
-### 2️⃣ Configure the Firmware
+---
 
-#### 🔑 Initial Configuration (First Time Only)
+## 💻 Installation & Setup
 
-1. **Move the Entire `esp32` Folder**:
-   - Copy the entire `esp32` folder from this repository to your Arduino IDE's sketchbook directory or any other location where you store your Arduino projects.
-   - **Do not move only the `esp32.ino` file**, as it depends on other files in the `esp32` directory, such as `config.h`, `config_manager.h`, `wifi_manager.h`, `ota_manager.h`, `launcher.h`, and `secrets.h`.
+### 1️⃣ Firmware Configuration
+Update your [`esp32/secrets.h`](esp32/secrets.h) with your initial credentials. The ESP32 will now use the `currentServer` variable to poll the server.
 
-2. **Open the Project in Arduino IDE**:
-   - Open the Arduino IDE.
-   - Go to `File` > `Open` and navigate to the `esp32` folder.
-   - Select the `esp32.ino` file. The Arduino IDE will automatically recognize the other files in the folder as part of the project.
-
-3. **Edit the [`secrets.h`](esp32/secrets.h) File**:
-   - Add your initial credentials to the `secrets.h` file:
-
-```cpp
-// --- WiFi Settings ---
-#define WIFI_SSID "YOUR_WIFI_NAME"     // Your actual WiFi Name
-#define WIFI_PASS "YOUR_WIFI_PASSWORD" // Your actual WiFi Password
-
-// --- Server Settings ---
-#define SERVER "https://your-ngrok-url.ngrok-free.app"  // Your Ngrok URL
-
-// Login for your node server (matches your .env file)
-#define HTTP_USERNAME "your_username"
-#define HTTP_PASSWORD "your_password"
-
-// Your Chat Name
-#define CHAT_NAME "ai-84"
-
-// --- Secure Mode ---
-#define SECURE
-```
-
-#### 🔧 Resolving the `Preferences.h` Error
-
-If you encounter the error `cannot open source file "Preferences.h"`, it means the ESP32 Arduino core library is not properly installed or configured in your development environment. Follow these steps to resolve the issue:
-
-1. **Install the ESP32 Arduino Core**:
-   - Open Arduino IDE.
-   - Go to `File` > `Preferences`.
-   - In the "Additional Boards Manager URLs" field, add the following URL:
-     ```
-     https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-     ```
-   - Go to `Tools` > `Board` > `Boards Manager`, search for "esp32", and install the latest version of the ESP32 Arduino core.
-
-2. **Select the Correct Board**:
-   - Go to `Tools` > `Board` and select your ESP32 board (e.g., "AI Thinker ESP32-CAM").
-
-3. **Verify Library Installation**:
-   - Ensure that the `Preferences.h` file is available in your Arduino libraries. It should be included as part of the ESP32 core installation.
-
-4. **Restart the IDE**:
-   - After installing the ESP32 core, restart the Arduino IDE to ensure the changes take effect.
-
-> [!TIP]
-> If you are using VSCode with the PlatformIO extension, ensure that the ESP32 platform is installed and configured correctly in your `platformio.ini` file.
-
-#### 🔑 Configuration Details
-
-| Parameter | Description | How to Get It |
-|-----------|-------------|---------------|
-| `WIFI_SSID` | Your WiFi network name | Found in your router settings or WiFi connection list |
-| `WIFI_PASS` | Your WiFi password | Found in your router settings (usually on a sticker on the router) |
-| `SERVER` | Your Ngrok public URL | Will be obtained after starting Ngrok (see below) |
-| `HTTP_USERNAME` | Node.js server username | Set in your server's `.env` file |
-| `HTTP_PASSWORD` | Node.js server password | Set in your server's `.env` file |
-| `CHAT_NAME` | Your chat identifier | Any name you prefer (e.g., "ai-84") |
-
-**Example Configuration:**
-```cpp
-#define WIFI_SSID "MyHomeWiFi"
-#define WIFI_PASS "MySecurePassword123"
-#define SERVER "https://c7532afaf9b0.ngrok-free.app"
-#define HTTP_USERNAME "joshipa"
-#define HTTP_PASSWORD "Lostking@18"
-#define CHAT_NAME "ai-84"
-```
-
-> [!TIP]
-> **Getting Your Google Gemini API Key:**
-> 1. Visit [Google AI Studio](https://aistudio.google.com/app/apikey)
-> 2. Sign in with your Google account
-> 3. Click "Get API Key" or "Create API Key"
-> 4. Copy the generated key (it starts with `AIza`)
-> 5. Paste it into your server's `.env` file
->
-> The free tier includes generous usage limits suitable for personal projects!
-
-#### 🔐 Calculator Unlock Password
-
-The ESP32 starts in a **locked state** to prevent unauthorized commands from the calculator.
-
-| Parameter | Value | Purpose |
-|-----------|-------|---------|
-| **Unlock Password** | `42069` | Must be sent to variable `P` on the calculator to unlock ESP32 features |
-
-**How to Unlock:**
-1. On your TI-84 Plus, press **[2nd]** → **[0]** (CATALOG)
-2. Scroll down to `Send(` and press **[ENTER]**
-3. Type: `Send(42069,P)`
-4. Press **[ENTER]**
-
-Once unlocked, the ESP32 will accept commands from the `PIGPT` program.
-
-> [!NOTE]
-> You only need to unlock once per ESP32 power cycle. If you reset the ESP32, you'll need to send the unlock password again.
-
-### 3️⃣ Start Node.js Server & Ngrok
-
-Before uploading to ESP32, you need to start your backend server and Ngrok tunnel:
-
-#### **Step 1: Start Node.js Server**
+### 2️⃣ Server Setup
 ```bash
 cd server
 npm install
 npm start
 ```
-- Server listens on `http://localhost:8080`
 
-#### **Step 2: Start Ngrok Tunnel**
+### 3️⃣ Usage via CLI
+You can still use the CLI tools now located in the `cli/` folder:
 ```bash
-cd server
-./ngrok.exe http 8080
+npm run scan      # node cli/WIFISCAN.mjs
+npm run ngrok     # node cli/NGROKSET.mjs
 ```
-- Ngrok will create a public HTTPS URL
-- Example output: `https://c7532afaf9b0.ngrok-free.app`
-- **Copy this URL** - you'll need it for the next step
-
-> [!NOTE]
-> Keep both the Node.js server and Ngrok running in the background. The ESP32 will connect to your local server through the Ngrok tunnel.
-
-### 4️⃣ Upload to ESP32-CAM
-
-You have two options for programming the ESP32-CAM:
-
-#### **Option A: Using FTDI Programmer (Traditional Method)**
-
-1. Connect your ESP32-CAM to the FTDI programmer (ensure **GPIO 0 is connected to GND** to enter flash mode)
-2. Press the **Reset** button on the ESP32-CAM
-3. Click **Upload** in Arduino IDE
-4. Once done, **disconnect GPIO 0 from GND** and press **Reset** again to run the code
-
-#### **Option B: Using Raspberry Pi Pico as FTDI (Recommended Alternative)**
-
-The Raspberry Pi Pico can act as a USB-to-serial bridge, eliminating the need for a dedicated FTDI programmer.
-
-##### **Step 1: Program the Raspberry Pi Pico**
-
-```
-// Serial Passthrough for Pico to ESP32
-// This turns the Pico into a USB-to-Serial Adapter
-
-void setup() {
-  Serial.begin(115200);  // USB Serial (Connection to Computer)
-  Serial1.begin(115200); // Hardware Serial (Connection to ESP32-CAM)
-}
-
-void loop() {
-  if (Serial.available()) {      // If data comes from Computer...
-    Serial1.write(Serial.read()); // Send it to ESP32
-  }
-  if (Serial1.available()) {     // If data comes from ESP32...
-    Serial.write(Serial1.read()); // Send it to Computer
-  }
-}
-```
-
-2. Flash the Pico:
-    -Unplug the ESP32-CAM for a moment. We need to prep the Pico first.
-
-    -Hold the BOOTSEL button on the Pico and plug it into your computer via USB.
-
-    -Open Arduino IDE.
-
-    -Select the board: Tools > Board > Raspberry Pi Pico. (If you don't see it, go to Boards Manager and install "Arduino       Mbed OS RP2040 Boards").
-
-    -Copy and paste this code into a new sketch:
-
-    -Upload code
-
-##### **Step 2: Wire the Pico to ESP32-CAM**
-
-| Raspberry Pi Pico Pin | Connection | ESP32-CAM Pin |
-|-----------------------|------------|---------------|
-| **GP0** (Pin 1) | TX (Transmit) | **U0R** (RX) |
-| **GP1** (Pin 2) | RX (Receive) | **U0T** (TX) |
-| **GND** (Pin 3, 8, 13, 18, etc.) | Ground | **GND** |
-| **VBUS** (Pin 40) | Power (5V) | **5V** |
-
-**Additional for Flash Mode:**
-- Connect **GPIO 0** on ESP32-CAM to **GND** temporarily to enter programming mode
-- After uploading, disconnect GPIO 0 from GND
-
-##### **Wiring Diagram: Pico to ESP32-CAM**
-
-```
-    Raspberry Pi Pico              ESP32-CAM
-   +-----------------+           +--------------+
-   |                 |           |              |
-   |   GP0 (Pin 1)   |---------->| U0R (RX)     | (TX from Pico)
-   |   GP1 (Pin 2)   |<----------| U0T (TX)     | (RX to Pico)
-   |   GND (Pin 3)   |-----------| GND          |
-   |   VBUS (Pin 40) |-----------| 5V           |
-   |                 |           |              |
-   +-----------------+           +--------------+
-                                         |
-                                    GPIO 0 ---[Connect to GND for flashing]
-```
-
-##### **Step 3: Upload Code via Pico**
-
-1. In Arduino IDE, go to **Tools → Port** and select the port labeled **Picoprobe** or **USB Serial Device**
-2. Ensure **GPIO 0** on the ESP32-CAM is connected to **GND**
-3. Press the **Reset** button on the ESP32-CAM (if available)
-4. Click **Upload** in Arduino IDE
-5. Wait for the upload to complete
-6. **Disconnect GPIO 0 from GND**
-7. Press **Reset** again (or power cycle) to run your code
-
-> [!TIP]
-> **Troubleshooting Pico Programming:**
-> - If upload fails, ensure GPIO 0 is grounded before clicking Upload
-> - Check that TX/RX pins are not swapped (GP0 → U0R, GP1 → U0T)
-> - Try a different USB cable if the Pico is not recognized
-> - Some ESP32-CAM boards may require manual reset timing - press reset right as "Connecting..." appears
-
-### 5️⃣ Configure WiFi & Ngrok from Calculator
-
-After uploading the firmware, you can configure WiFi and Ngrok settings directly from your calculator without physical access to the ESP32.
-
-#### **Step 1: Configure WiFi Network**
-
-1. Connect your calculator to ESP32 via serial cable (GPIO 12/13)
-2. Run the `WIFISCAN` program on your calculator:
-   - Press **[PRGM]**, select `WIFISCAN`, press **[ENTER]**
-   - The program will scan for available networks and display them
-   - Note the index number of your desired network
-
-3. Run the `WIFIPASS` program:
-   - Press **[PRGM]**, select `WIFIPASS`, press **[ENTER]**
-   - Enter the SSID (network name) when prompted
-   - Enter the WiFi password when prompted
-   - The ESP32 will connect and save credentials to NVS (persistent storage)
-
-> [!TIP]
-> **Troubleshooting WiFi:**
-> - If connection fails, verify the password is correct
-> - Check that the network is 2.4GHz (ESP32 doesn't support 5GHz)
-> - Ensure the network is within range
-
-#### **Step 2: Configure Ngrok URL**
-
-1. Run the `NGROKSET` program:
-   - Press **[PRGM]**, select `NGROKSET`, press **[ENTER]**
-   - The program will show the current Ngrok URL
-   - Enter your new Ngrok URL (from Step 2 above)
-   - The ESP32 will save the URL and use it immediately
-
-> [!NOTE]
-> The Ngrok URL is stored in NVS and persists across reboots. You can update it anytime without physical access to the ESP32.
-
-#### **Step 3: Verify Configuration**
-
-1. Run the `PIGPT` program to test the connection:
-   - Press **[PRGM]**, select `PIGPT`, press **[ENTER]**
-   - Enter a test question (e.g., "What is 2+2?")
-   - The ESP32 will connect to your Node.js server via Ngrok and return the AI response
-
-### 6️⃣ Install Calculator Program
-
-You need to get the `PIGPT` program onto your calculator.
-
-<details>
-<summary>📝 <b>Click to view PIGPT.txt (TI-BASIC Source)</b></summary>
-
-```
-PROGRAM:PIGPT
-:ClrHome
-:Disp "ESP-GPT V1.0"
-:Disp ""
-:Input "ASK:",Str1
-:ClrHome
-:Disp "SENDING..."
-:Send(Str1)
-:ClrHome
-:Disp "THINKING..."
-:Disp "(WAIT 10S)"
-:GetCalc(Str0)
-:ClrHome
-:Disp Str0
-:Pause 
-:ClrHome
-:Stop
-```
-
-</details>
-
-**Manual Entry:**  
-The easiest way without a dedicated link cable is to type this short program manually into the calculator by pressing **[PRGM]**, **[NEW]**.
 
 ---
 
-## 🚀 Usage
+## 🚀 Calculator Commands
 
-### Step 1: Verify Connection
+The ESP32 supports the following Command IDs sent via `Send(ID,C)`:
 
-1. Open the **Serial Monitor** in Arduino IDE (Set baud rate to **115200**)
-2. Reset the ESP32
-3. You should see:
+| ID | Name | Description |
+|----|------|-------------|
+| 15 | `scan_networks` | Returns a list of available WiFi networks. |
+| 20 | `get_ip_address`| Returns the ESP32's local IP address. |
+| 21 | `get_power_status`| Returns JSON power/boot status. |
+| 22 | `get_status` | Returns comprehensive device status (Uptime, Heap, etc.) |
 
-```
-[Setup] Attempting WiFi connection...
-[Setup] Using saved WiFi credentials from NVS
-[Setup] WiFi connected! IP: 192.168.1.XXX
-[Setup] Starting OTA Web Server...
-[OTAManager] Web server started
-[OTAManager] Server Port: 80
-[OTAManager] Update Endpoint: /update
-[OTAManager] Status Endpoint: /status
-[OTAManager] Sketch Size: 123456
-[OTAManager] Free Space: 456789
-[ready]
-```
-
-### Step 2: Use the Calculator
-
-1. Plug the 2.5mm jack into the calculator
-2. Press **[PRGM]** on the TI-84 Plus
-3. Select `PIGPT` and press **[ENTER]**
-4. At the `ASK:` prompt, type your question (e.g., `"DEFINE ATOM"`)
-5. Press **[ENTER]**
-
-The Serial Monitor will show:
-
-```
-Received: "DEFINE ATOM"
-Querying Gemini...
-Response: "An atom is the smallest unit of matter..."
-Sending to Calc... Done.
-```
-
-**The answer will appear on your calculator screen!** 🎉
-
-### Step 3: Update Firmware via WiFi (OTA)
-
-After initial setup, you can update the ESP32 firmware without physical access:
-
-1. **Find your ESP32's local IP address:**
-   - Check the Serial Monitor for: `IP: 192.168.1.XXX`
-   - Or run the `WIFIPASS` program and check the connection status
-   - **NEW:** Use the Node.js scripts for easy IP detection (see below)
-
-2. **Open the OTA Update page in your browser:**
-   - Navigate to: `http://192.168.1.XXX/update` (replace with your ESP32's IP)
-   - You'll see a simple web interface with a file upload form
-
-3. **Upload new firmware:**
-   - Click "Choose File" and select your `.bin` firmware file
-   - Click "Upload Firmware"
-   - Wait for the upload to complete (progress bar will show status)
-   - ESP32 will automatically restart with the new firmware
-
-> [!NOTE]
-> **Important:** The OTA web server runs on port 80. Make sure your computer is on the same WiFi network as the ESP32.
-
-> [!TIP]
-> **Troubleshooting OTA:**
-> - If you can't access the OTA page, verify the ESP32 is connected to WiFi
-> - Check your firewall settings if the page doesn't load
-> - The ESP32 must have enough free flash space for the new firmware
-
-### Step 4: Power Management (NEW)
-
-The ESP32-CAM now features automatic power management to extend battery life when used with the calculator:
-
-#### How It Works
-- **When calculator connected**: ESP32 wakes up, connects to WiFi, starts OTA server
-- **When calculator disconnected**: ESP32 enters deep sleep after 5 seconds
-- **When calculator reconnected**: ESP32 wakes up, reconnects to WiFi, resumes operation
-
-#### Power Consumption
-- **Deep Sleep**: ~10µA (months on small LiPo battery)
-- **Active (WiFi connected)**: ~100-200mA
-- **Active (WiFi idle)**: ~50-100mA
-
-#### Power Status Command
-New command ID 21 (`get_power_status`) provides power management status:
-
-```basic
-PROGRAM:POWERSTATUS
-:ClrHome
-:Disp "GETTING POWER STATUS..."
-:Send(21)
-:GetCalc(Str0)
-:Disp Str0  // Shows power state, boot count, WiFi status
-:Pause
-:ClrHome
-:Stop
-```
-
-**Output Format:**
-```json
-{
-  "powered": true,
-  "deepSleep": false,
-  "bootCount": 5,
-  "wifiConnected": true,
-  "lastIP": "192.168.1.100"
-}
-```
-
-#### Hardware Requirements
-- **No additional hardware needed** - uses existing TIP/RING pins
-- **Existing 1kΩ resistors** provide voltage protection
-- **Software-only solution** - detects power via existing connections
-
-#### Benefits
-- **Extended battery life** when calculator disconnected
-- **Automatic operation** - no user intervention needed
-- **Fast wake-up** when calculator reconnects (~3-6 seconds)
-- **Power status visibility** for debugging
-
-> [!TIP]
-> **Pro Tip:** The power management feature is especially useful for portable use. When you disconnect the calculator, the ESP32 automatically enters deep sleep to save battery. When you reconnect, it automatically wakes up and resumes operation.
-
-> [!NOTE]
-> **Power Detection:** The ESP32 monitors the TIP/RING pins for voltage presence. When the calculator is connected, these pins receive voltage. When disconnected, the pins go LOW, triggering deep sleep after a 5-second delay.
-
-#### Testing Power Management
-1. **Connect calculator** - ESP32 should wake up and connect to WiFi
-2. **Disconnect calculator** - ESP32 should enter deep sleep after 5 seconds
-3. **Reconnect calculator** - ESP32 should wake up and reconnect to WiFi
-4. **Check power status** - Use command 21 to verify power state
-
-> [!WARNING]
-> **Important:** The ESP32 must be powered solely by the calculator connection for power management to work correctly. If you have a battery backup, the power management may not function as expected.
-
-#### Power Management Configuration
-The power management behavior can be customized in [`esp32/esp32.ino`](esp32/esp32.ino):
-
-```cpp
-// Power management configuration
-#define POWER_PIN_TIP 12
-#define POWER_PIN_RING 13
-#define POWER_CHECK_INTERVAL 100  // ms
-#define POWER_LOSS_DELAY 5000     // ms (5 seconds delay before deep sleep)
-```
-
-You can adjust `POWER_LOSS_DELAY` to change how long the ESP32 waits before entering deep sleep after power loss.
-
-### Step 5: Use Node.js Scripts for WiFi Management (NEW)
-
-The project now includes powerful Node.js scripts for managing WiFi connections and displaying IP addresses from your computer. These scripts are standalone utilities designed to interact with the ESP32 device's HTTP API endpoints and are not part of the server's routing logic.
-
-#### 📋 Available Scripts
-
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| **IPADDRESS.mjs** | Get ESP32's current IP address | `node IPADDRESS.mjs [esp32_ip]` |
-| **WIFISCAN.mjs** | Scan WiFi networks and show IP | `node WIFISCAN.mjs [esp32_ip]` |
-| **WIFIPASS.mjs** | Connect to WiFi and display IP | `node WIFIPASS.mjs [esp32_ip] [ssid] [password]` |
-| **NGROKSET.mjs** | Manage Ngrok URL and show IP | `node NGROKSET.mjs [esp32_ip] [new_url]` |
-
-#### 📁 Organizational Logic
-
-These scripts are placed outside the `/server/routes` directory because they are **utility scripts** rather than server routes. They are designed to be run from the command line to manage the ESP32 device's configuration and are not exposed as server endpoints. This placement ensures a clear separation between server routing logic and utility tools.
-
-#### 🔐 Security Implications
-
-- These scripts interact with the ESP32 device's HTTP API, which is only accessible on the local network.
-- No authentication is required for local access, but sensitive data (e.g., WiFi passwords) are transmitted in plaintext. This is acceptable for a local development environment but should be secured for production use.
-
-#### 🔧 Relocation Considerations
-
-If these scripts were to be integrated into the server as routes, the following steps would be required:
-
-1. **Refactor the Scripts**: Convert the CLI-based logic into Express.js route handlers.
-2. **Update Dependencies**: Replace `node-fetch` with the `fetch` API or `axios` for HTTP requests within the server.
-3. **Integrate with Server**: Import the new routes in `server/index.mjs` and mount them under appropriate paths (e.g., `/esp32/wifi`, `/esp32/ngrok`).
-4. **Testing**: Verify that the relocated routes work as expected and do not conflict with existing routes.
-
-#### 🎯 Benefits
-
-- **Instant IP display** without checking serial monitor
-- **Easy WiFi management** from computer without calculator
-- **Cross-platform** (works on Windows, macOS, Linux)
-- **Clear OTA instructions** with automatic IP detection
-- **Backward compatible** with existing calculator programs
-
-#### 🚀 Quick Start
-
-1. **Install dependencies:**
-   ```bash
-   npm install node-fetch
-   ```
-
-2. **Get ESP32 IP address:**
-   ```bash
-   node IPADDRESS.mjs 192.168.1.100
-   ```
-
-3. **Scan available WiFi networks:**
-   ```bash
-   node WIFISCAN.mjs 192.168.1.100
-   ```
-
-4. **Connect to WiFi network:**
-   ```bash
-   node WIFIPASS.mjs 192.168.1.100 "MyWiFi" "mypassword"
-   ```
-
-5. **Manage Ngrok URL:**
-   ```bash
-   node NGROKSET.mjs 192.168.1.100 "https://abc123.ngrok-free.app"
-   ```
-
-#### 📡 Typical Workflow
-
-```bash
-# 1. Connect to ESP32's initial WiFi (if configured)
-# 2. Scan available networks
-node WIFISCAN.mjs 192.168.1.100
-
-# 3. Connect to your WiFi network
-node WIFIPASS.mjs 192.168.1.100 "MyHomeWiFi" "securepassword"
-
-# 4. Set Ngrok URL
-node NGROKSET.mjs 192.168.1.100 "https://my-ngrok-url.ngrok-free.app"
-
-# 5. Get current IP for OTA updates
-node IPADDRESS.mjs 192.168.1.100
-
-# 6. Open browser to the displayed IP and upload firmware
-```
-
-#### 🎯 Benefits
-
-- **Instant IP display** without checking serial monitor
-- **Easy WiFi management** from computer without calculator
-- **Cross-platform** (works on Windows, macOS, Linux)
-- **Clear OTA instructions** with automatic IP detection
-- **Backward compatible** with existing calculator programs
-
-> [!TIP]
-> **Pro Tip:** Use these scripts when you need to quickly find the ESP32's IP address for OTA updates or when setting up WiFi for the first time. The scripts provide a more convenient alternative to using the calculator programs.
-
-> [!NOTE]
-> **Security:** The HTTP endpoints are only accessible on your local network. No authentication is required for local access, but sensitive data (WiFi passwords) are transmitted in plaintext. For production use, consider adding authentication.
-
-#### 🔧 HTTP API Reference
-
-The ESP32 now exposes these HTTP endpoints:
-
-- `GET /wifi/status` - Get WiFi connection status and IP address
-- `GET /wifi/scan` - Scan available WiFi networks
-- `POST /wifi/connect` - Connect to WiFi network
-- `POST /wifi/save` - Save WiFi credentials to NVS
-- `GET /ngrok/url` - Get current Ngrok URL
-- `POST /ngrok/url` - Set Ngrok URL
-
-These endpoints work alongside the existing calculator-based DBus commands, giving you flexibility in how you manage your ESP32 device.
-
-### Step 6: Update WiFi & Ngrok Settings
-
-You can update WiFi credentials and Ngrok URL anytime from the calculator:
-
-1. **Update WiFi Network:**
-   - Run `WIFISCAN` to see available networks
-   - Run `WIFIPASS` to connect to a new network
-   - Credentials are saved to NVS and persist across reboots
-
-2. **Update Ngrok URL:**
-   - Run `NGROKSET` to change the Ngrok URL
-   - New URL is used immediately for all API calls
-   - No restart required
-
-> [!NOTE]
-> **Factory Reset:** If you need to reset all configuration, you can send command `17` with password `42069` to clear NVS and restore default settings from `secrets.h`.
-
-### Step 7: Use Other Features
-
-All existing features continue to work with the new configuration system:
-
-- **GPT Queries:** Use `PIGPT` program as before
-- **Image Lists:** Use `image_list` command
-- **Program Downloads:** Use `fetch_program` command
-- **Chat Features:** Use `send_chat` and `fetch_chats` commands
-
-All API calls now use the Ngrok URL stored in NVS, so you can update it anytime without recompiling.
+> **Note**: Polling is automatically suspended while the ESP32 is busy communicating with the calculator to ensure timing accuracy.
 
 ---
 
-## 📷 Multi-Modal Features (NEW)
-
-### Camera Functionality
-
-The ESP32-CAM now supports full camera functionality for the AI Thinker board:
-
-#### Hardware Requirements
-- **ESP32-CAM AI Thinker board** with integrated camera
-- **Camera module** (OV2640 typically included)
-- **No additional hardware** needed for camera operation
-
-#### Camera Configuration
-Camera functionality is enabled by default in [`esp32/esp32.ino`](esp32/esp32.ino:26):
-
-```cpp
-#define CAMERA
-```
-
-The camera uses the following GPIO pins (pre-configured in [`camera_pins.h`](esp32/camera_pins.h:139)):
-- **PWDN**: GPIO 32
-- **RESET**: GPIO -1 (not used)
-- **XCLK**: GPIO 0
-- **SIOD**: GPIO 26
-- **SIOC**: GPIO 27
-- **Y2-Y9**: Camera data pins
-- **VSYNC**: GPIO 25
-- **HREF**: GPIO 23
-- **PCLK**: GPIO 22
-- **LED**: GPIO 33 (camera LED flash)
-
-#### Image Capture Commands
-
-##### **Command 7: `snap` - Capture Image**
-Captures an image from the camera and stores it in the frame buffer.
-
-```basic
-PROGRAM:CAPTURE
-:ClrHome
-:Disp "CAPTURING IMAGE..."
-:Send(7)
-:GetCalc(Str0)
-:Disp Str0  // "Image captured successfully"
-:Pause
-:ClrHome
-:Stop
-```
-
-**Features:**
-- Real-time feedback before capture (focus and lighting suggestions)
-- Image stored in frame buffer for processing
-- Context management for multi-modal interactions
-
-##### **Command 8: `solve` - Capture and Solve**
-Captures an image and prepares it for solving (e.g., QR code, object recognition).
-
-```basic
-PROGRAM:SOLVE
-:ClrHome
-:Disp "CAPTURING TO SOLVE..."
-:Send(8)
-:GetCalc(Str0)
-:Disp Str0  // "Image solved successfully"
-:Pause
-:ClrHome
-:Stop
-```
-
-**Features:**
-- Captures image for processing
-- Placeholder for image solving logic (QR code, object recognition, etc.)
-- Context management for multi-modal interactions
-
-#### Real-Time Feedback
-
-The system provides real-time feedback during image capture:
-
-```basic
-PROGRAM:CAPTURE_FEEDBACK
-:ClrHome
-:Disp "CHECKING CAMERA..."
-:Send(7)
-:GetCalc(Str0)
-:Disp Str0  // "Capture Feedback: Ready to capture!"
-:Pause
-:ClrHome
-:Stop
-```
-
-**Feedback includes:**
-- Focus status (optimal/not optimal)
-- Lighting conditions (good/poor)
-- Capture readiness
-
-#### Context Management
-
-The system maintains conversation context between text and image inputs:
-
-```cpp
-// Context management for multi-modal interactions
-char contextBuffer[MAXHTTPRESPONSELEN];
-bool useTextAPI = true;
-
-void manageContext(const char* input, bool isImage) {
-  // Update the context buffer with the latest input
-  if (isImage) {
-    strncpy(contextBuffer, "[Image Context] ", MAXHTTPRESPONSELEN - 1);
-    strncat(contextBuffer, input, MAXHTTPRESPONSELEN - strlen(contextBuffer) - 1);
-    useTextAPI = false;
-  } else {
-    strncpy(contextBuffer, "[Text Context] ", MAXHTTPRESPONSELEN - 1);
-    strncat(contextBuffer, input, MAXHTTPRESPONSELEN - strlen(contextBuffer) - 1);
-    useTextAPI = true;
-  }
-}
-```
-
-**Benefits:**
-- Maintains conversation history across text and image inputs
-- Enables richer AI interactions
-- Supports complex multi-modal queries
-
-### Node.js Backend for Image Processing
-
-The Node.js server now includes enhanced image processing capabilities:
-
-#### Image Upload Endpoint
-**POST `/upload`** - Upload and process images from the ESP32
-
-```javascript
-// server/routes/images.mjs
-app.post('/upload', upload.single('image'), async (req, res) => {
-  // Process uploaded image
-  // Send to AI analysis
-  // Return results
-});
-```
-
-**Features:**
-- Image validation and processing
-- AI analysis integration
-- Context-aware responses
-- Error handling
-
-#### Image Processing Workflow
-1. **Capture**: ESP32 captures image via camera
-2. **Upload**: Image sent to Node.js server
-3. **Process**: Server processes and analyzes image
-4. **AI Analysis**: Image sent to AI model for analysis
-5. **Response**: Results returned to calculator
-
-#### Test Script
-A test script is provided to verify multi-modal functionality:
-
-```bash
-node test_multimodal.mjs
-```
-
-This script tests:
-- Text input processing
-- Image capture and processing
-- Context continuity
-- System latency
-
-### Multi-Modal Interaction Examples
-
-#### Example 1: Text + Image Query
-```
-Calculator: "What is this object?"
-ESP32: Captures image and sends to server
-Server: Analyzes image with AI
-AI: "This is a red apple"
-Calculator: Displays "This is a red apple"
-```
-
-#### Example 2: Context-Aware Follow-up
-```
-Calculator: "What is this?" (sends image)
-ESP32: Captures image, sends to server
-Server: Analyzes image
-AI: "This is a bicycle"
-Calculator: Displays "This is a bicycle"
-
-Calculator: "What color is it?" (follow-up)
-ESP32: Sends text query with image context
-Server: Uses previous context
-AI: "The bicycle is blue"
-Calculator: Displays "The bicycle is blue"
-```
-
-#### Example 3: Image Analysis
-```
-Calculator: "Analyze this image" (sends image)
-ESP32: Captures image, sends to server
-Server: Performs detailed analysis
-AI: "Image contains: 1) Person, 2) Mountain background, 3) Sunny weather"
-Calculator: Displays analysis results
-```
-
-### Performance Optimization
-
-#### Latency Reduction
-- **Context caching**: Reduces redundant AI calls
-- **Image compression**: Optimized for ESP32-CAM
-- **Parallel processing**: Text and image processing
-- **Connection pooling**: Efficient WiFi usage
-
-#### Memory Management
-- **Frame buffer optimization**: Efficient image storage
-- **Context buffer limits**: Prevents memory overflow
-- **Dynamic allocation**: Based on image size
-
-### Testing Multi-Modal System
-
-Run the test script to verify functionality:
-
-```bash
-cd test-images
-node ../test_multimodal.mjs
-```
-
-**Test Coverage:**
-- ✅ Text input processing
-- ✅ Image capture and upload
-- ✅ Context management
-- ✅ AI response handling
-- ✅ Error recovery
-- ✅ Latency measurement
-
----
-
-## 🔧 Troubleshooting
-
-| Problem | Likely Cause | Solution |
-|---------|--------------|----------|
-| `"Error in Xmit"` | Wiring issue | Check resistors and ensure ESP32 is powered on |
-| `"Waiting..."` (Forever) | WiFi stuck | Check Serial Monitor to see if WiFi connected successfully |
-| Brownout Detector Error | Low Power | ESP32-CAM is power-hungry. Use a better USB cable/power source |
-| No Response | API Limit | Check if your Google Gemini API quota is exceeded |
-| Gibberish on Calculator | Baud Rate Mismatch | Verify DBus timing in code matches TI protocol specs |
-| ESP32 Won't Flash | GPIO 0 Not Grounded | Ensure GPIO 0 is connected to GND during upload |
-| Can't Access OTA Page | Wrong IP or Network | Verify ESP32 IP address and that computer is on same network |
-| WiFi Won't Connect | Wrong Credentials | Check SSID and password in NVS, try `WIFIPASS` again |
-| Ngrok URL Not Working | Invalid Format | URL must contain "ngrok" and be a valid HTTPS URL |
-| Camera Not Working | CAMERA not defined | Uncomment `#define CAMERA` in esp32.ino |
-| Image Capture Fails | Camera not initialized | Check camera_pins.h configuration |
-| Context Lost | Buffer overflow | Reduce context buffer size or clear context |
-
-### 🐛 Debug Tips
-
-- Always check the **Serial Monitor** first for detailed logging
-- Verify all connections with a multimeter
-- Try a different USB cable or power source
-- Test the calculator's I/O port with another link cable first
-- Use `configMgr.printAll()` in setup to see stored configuration
-- Check WiFi status with `wifiMgr.printStatus()`
-- For camera issues, check `esp_camera_init()` return value
-- For context issues, monitor `contextBuffer` usage
-
-### 📊 Configuration Status
-
-To view current configuration from Serial Monitor:
-```
-[ConfigManager] Retrieved SSID: MyHomeWiFi
-[ConfigManager] Retrieved WiFi password
-[ConfigManager] Retrieved Ngrok URL: https://c7532afaf9b0.ngrok-free.app
-[ConfigManager] WiFi connected status: true
-[ConfigManager] Boot count: 5
-```
-
-### 📷 Camera Debug
-
-To debug camera issues:
-1. Check camera initialization in Serial Monitor
-2. Verify camera_pins.h matches your board
-3. Test with `snap` command
-4. Check frame buffer allocation
-5. Verify camera power and connections
-
-### 📷 Camera Compilation Errors
-
-If you encounter compilation errors related to camera functionality, follow these steps:
-
-#### **Error: `camera_config_t` was not declared in this scope**
-
-**Cause:** The camera library is not being properly included before the camera configuration code.
-
-**Solution:** The `esp32.ino` file has been updated to fix this issue. The camera library is now included at the top of the file, and camera pin definitions are directly in the file (not in a separate header).
-
-**If you still see this error:**
-1. **Verify the fix is applied:** Check that your `esp32.ino` file starts with:
-   ```cpp
-   // Project: TI-32 v0.1
-   // Author:  ChromaLock
-   // Target:  ESP32-CAM AI Thinker
-
-   // ==========================================
-   // 1. ENABLE CAMERA (MUST BE FIRST)
-   // ==========================================
-   #define CAMERA
-   #define CAMERA_MODEL_AI_THINKER // Has PSRAM
-
-   // ==========================================
-   // 2. INCLUDES
-   // ==========================================
-   #include <Arduino.h>
-   #include "esp_camera.h" // This library is built-in to the ESP32 Board package
-   ```
-
-2. **Check camera pin definitions:** Ensure the pin definitions are present:
-   ```cpp
-   // ==========================================
-   // 3. CAMERA PIN DEFINITIONS (AI THINKER)
-   // ==========================================
-   #ifdef CAMERA
-     #define PWDN_GPIO_NUM     32
-     #define RESET_GPIO_NUM    -1
-     #define XCLK_GPIO_NUM     0
-     #define SIOD_GPIO_NUM     26
-     #define SIOC_GPIO_NUM     27
-     
-     #define Y9_GPIO_NUM       35
-     #define Y8_GPIO_NUM       34
-     #define Y7_GPIO_NUM       39
-     #define Y6_GPIO_NUM       36
-     #define Y5_GPIO_NUM       21
-     #define Y4_GPIO_NUM       19
-     #define Y3_GPIO_NUM       18
-     #define Y2_GPIO_NUM       5
-     #define VSYNC_GPIO_NUM    25
-     #define HREF_GPIO_NUM     23
-     #define PCLK_GPIO_NUM     22
-   #endif
-   ```
-
-3. **Verify board selection:** In Arduino IDE, go to **Tools → Board** and ensure **AI Thinker ESP32-CAM** is selected.
-
-4. **Check library installation:** The `esp_camera.h` library should be included with the ESP32 Arduino core. If missing:
-   - Go to **Tools → Board → Boards Manager**
-   - Search for "esp32" and ensure it's installed
-   - Restart Arduino IDE
-
-#### **Error: `esp_camera.h` not found**
-
-**Cause:** The ESP32 Arduino core is not properly installed.
-
-**Solution:**
-1. Open Arduino IDE
-2. Go to **File → Preferences**
-3. In "Additional Board Manager URLs", add:
-   ```
-   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-   ```
-4. Go to **Tools → Board → Boards Manager**
-5. Search for "esp32" and install the latest version
-6. Restart Arduino IDE
-
-#### **Error: `Y2_GPIO_NUM` was not declared in this scope**
-
-**Cause:** Camera pin definitions are missing or not properly defined.
-
-**Solution:** This error should be resolved by the fix applied to `esp32.ino`. If you still see this error:
-1. Verify the camera pin definitions are present in your `esp32.ino` file
-2. Ensure the `#define CAMERA` is at the very top of the file
-3. Check that the pin definitions are wrapped in `#ifdef CAMERA`
-
-#### **General Camera Compilation Tips**
-
-1. **Clean build:** After making changes, do a clean build:
-   - **Sketch → Clean** (or **Project → Clean** in some IDEs)
-   - Then try compiling again
-
-2. **Check for duplicate definitions:** If you have both `camera_pins.h` and pin definitions in `esp32.ino`, remove the `camera_pins.h` include to avoid conflicts.
-
-3. **Verify ESP32 core version:** Use ESP32 Arduino core version 2.0.x or later for best camera support.
-
-4. **Check memory usage:** ESP32-CAM has limited memory. If you get "Sketch too large" errors, consider:
-   - Disabling unused features
-   - Reducing image quality settings
-   - Using a smaller frame size
-
-5. **Serial monitor debugging:** Always check the Serial Monitor (115200 baud) for detailed error messages during compilation and runtime.
-
----
-
-### 📊 Configuration Status
-
-To view current configuration from Serial Monitor:
-```
-[ConfigManager] Retrieved SSID: MyHomeWiFi
-[ConfigManager] Retrieved WiFi password
-[ConfigManager] Retrieved Ngrok URL: https://c7532afaf9b0.ngrok-free.app
-[ConfigManager] WiFi connected status: true
-[ConfigManager] Boot count: 5
-```
-
-### 📷 Camera Debug
-
-To debug camera issues:
-1. Check camera initialization in Serial Monitor
-2. Verify camera_pins.h matches your board
-3. Test with `snap` command
-4. Check frame buffer allocation
-5. Verify camera power and connections
-
----
-
-## 📚 Additional Resources
-
-- [TI-84 Plus Link Protocol Documentation](http://merthsoft.com/linkguide/ti83+/packet.html)
-- [ESP32-CAM Pinout Reference](https://randomnerdtutorials.com/esp32-cam-ai-thinker-pinout/)
-- [Google Gemini API Documentation](https://ai.google.dev/docs)
-- [Ngrok Documentation](https://ngrok.com/docs)
-- [Arduino WebServer Library](https://github.com/espressif/arduino-esp32/tree/master/libraries/WebServer)
-- [ESP32 Camera Driver](https://github.com/espressif/esp32-camera)
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 🛠 Troubleshooting
+
+- **Polling Lag**: The default polling interval is 5 seconds. Commands sent from the Dashboard may take a few seconds to trigger.
+- **Ngrok Tunnel**: Ensure your Ngrok tunnel is active. If the URL changes, you'll need to update it via the Dashboard or the `NGROKSET` calculator program.
+- **Busy State**: If the ESP32 is currently running a calculator command, it will wait until completion before polling the server again.
 
 ---
 
 <div align="center">
-
 **Made with ❤️ for the TI Calculator Community**
-
-⭐ Star this repo if you found it helpful!
-
 </div>

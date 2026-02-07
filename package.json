@@ -1,4 +1,20 @@
 {
+  "name": "ti-32",
+  "version": "1.0.0",
+  "description": "TI-32 ESP32-CAM Calculator Interface",
+  "main": "server/index.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.mjs",
+    "scan": "node cli/WIFISCAN.mjs",
+    "pass": "node cli/WIFIPASS.mjs",
+    "ip": "node cli/IPADDRESS.mjs",
+    "ngrok": "node cli/NGROKSET.mjs",
+    "build:images": "bash build/genfiles.sh",
+    "build:launcher": "bash build/preplauncher.sh",
+    "test:multimodal": "node tests/test_multimodal.mjs",
+    "test:scripts": "node tests/test_scripts.mjs"
+  },
   "dependencies": {
     "node-fetch": "^3.3.2"
   }

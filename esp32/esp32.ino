@@ -90,6 +90,9 @@ int bootCount = 0;
 bool wifiConnected = false;
 char lastIP[16] = {0};
 
+// Polling variables
+unsigned long lastPollTime = 0;
+
 // Arguments
 int currentArg = 0;
 char strArgs[MAXARGS][MAXSTRARGLEN];
@@ -137,6 +140,7 @@ void get_ngrok();
 void set_ngrok();
 void get_ip_address();
 void get_power_status();
+void get_status();
 
 struct Command {
   int id;
@@ -166,11 +170,12 @@ struct Command commands[] = {
   { 18, "get_ngrok", 0, get_ngrok, false },
   { 19, "set_ngrok", 1, set_ngrok, false },
   { 20, "get_ip_address", 0, get_ip_address, false },
-  { 21, "get_power_status", 0, get_power_status, false }
+  { 21, "get_power_status", 0, get_power_status, false },
+  { 22, "get_status", 0, get_status, false }
 };
 
 constexpr int NUMCOMMANDS = sizeof(commands) / sizeof(struct Command);
-constexpr int MAXCOMMAND = 21;
+constexpr int MAXCOMMAND = 22;
 
 uint8_t header[MAXHDRLEN];
 uint8_t data[MAXDATALEN];
@@ -348,9 +353,82 @@ void setup() {
 
 void (*queued_action)() = NULL;
 
+bool isBusyWithCalculator() {
+  // Busy if:
+  // - Command has been received (command != -1)
+  // - AND command is not yet complete (status == 0)
+  return (command >= 0 && command <= MAXCOMMAND && status == 0);
+}
+
+void postResult(String result) {
+  #ifdef SECURE
+    WiFiClientSecure client;
+    client.setInsecure();
+  #else
+    WiFiClient client;
+  #endif
+  HTTPClient http;
+  http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+
+  auto url = String(currentServer) + "/esp32/result";
+  http.begin(client, url);
+  http.addHeader("Content-Type", "application/json");
+
+  int httpResponseCode = http.POST(result);
+  Serial.print("POST Result: ");
+  Serial.println(httpResponseCode);
+  http.end();
+}
+
+void pollServer() {
+  if (!WiFi.isConnected()) return;
+
+  #ifdef SECURE
+    WiFiClientSecure client;
+    client.setInsecure();
+  #else
+    WiFiClient client;
+  #endif
+  HTTPClient http;
+  http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+
+  auto url = String(currentServer) + "/esp32/poll";
+  http.begin(client, url);
+
+  int httpResponseCode = http.GET();
+  if (httpResponseCode == 200) {
+    String payload = http.getString();
+    Serial.print("Poll response: ");
+    Serial.println(payload);
+
+    if (payload == "SCAN_NETWORKS") {
+      String results = wifiMgr.scanNetworksDetailed();
+      postResult(results);
+    } else if (payload == "GET_STATUS") {
+      get_status(); // This will update 'message'
+      String statusJson = String("{\"command\":\"get_status\",\"success\":true,\"data\":") + message + "}";
+      postResult(statusJson);
+    } else if (payload.startsWith("SET_NGROK ")) {
+      String newUrl = payload.substring(10);
+      strncpy(strArgs[0], newUrl.c_str(), MAXSTRARGLEN - 1);
+      currentArg = 1;
+      set_ngrok();
+      String responseJson = String("{\"command\":\"set_ngrok\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
+      postResult(responseJson);
+    }
+  }
+  http.end();
+}
+
 void loop() {
   // Handle OTA web server requests (non-blocking)
   otaMgr.handleClient();
+
+  // Polling logic
+  if (millis() - lastPollTime > POLL_INTERVAL_MS && !isBusyWithCalculator()) {
+    lastPollTime = millis();
+    pollServer();
+  }
 
   if (queued_action) {
     // dont ask me why you need this, but it fails otherwise.
@@ -960,22 +1038,22 @@ int sendProgramVariable(const char* name, uint8_t* program, size_t variableSize)
 // ============================================================================
 
 void scan_networks() {
- Serial.println("[CMD] scan_networks");
- 
- String networkList = wifiMgr.scanNetworks();
- 
- if (networkList.length() == 0) {
-   setError("No networks found");
-   return;
- }
- 
- // Truncate to MAXSTRARGLEN if necessary
- if (networkList.length() >= MAXSTRARGLEN) {
-   networkList = networkList.substring(0, MAXSTRARGLEN - 1);
- }
- 
- strncpy(message, networkList.c_str(), MAXSTRARGLEN - 1);
- setSuccess(message);
+  Serial.println("[CMD] scan_networks");
+
+  // If argument 1 is provided and is 1, do detailed scan (though polling calls it directly)
+  if (currentArg > 0 && (int)realArgs[0] == 1) {
+    String networkList = wifiMgr.scanNetworksDetailed();
+    strncpy(message, networkList.c_str(), MAXSTRARGLEN - 1);
+  } else {
+    String networkList = wifiMgr.scanNetworks();
+    if (networkList.length() == 0) {
+      setError("No networks found");
+      return;
+    }
+    strncpy(message, networkList.c_str(), MAXSTRARGLEN - 1);
+  }
+
+  setSuccess(message);
 }
 
 void connect_wifi() {
@@ -1090,5 +1168,46 @@ void get_power_status() {
   statusJson += "}";
   
   strncpy(message, statusJson.c_str(), MAXSTRARGLEN - 1);
+  setSuccess(message);
+}
+
+void get_status() {
+  Serial.println("[CMD] get_status");
+
+  unsigned long uptime = millis() / 1000;
+  int h = uptime / 3600;
+  int m = (uptime % 3600) / 60;
+  int s = uptime % 60;
+  char uptime_fmt[16];
+  snprintf(uptime_fmt, sizeof(uptime_fmt), "%dh %dm %ds", h, m, s);
+
+  String json = "{";
+  json += "\"device\":{";
+  json += "\"name\":\"ESP32-CAM\",";
+  json += "\"uptime_seconds\":" + String(uptime) + ",";
+  json += "\"uptime_formatted\":\"" + String(uptime_fmt) + "\",";
+  json += "\"boot_count\":" + String(bootCount) + ",";
+  json += "\"free_heap\":" + String(ESP.getFreeHeap()) + ",";
+  json += "\"chip_model\":\"ESP32\"";
+  json += "},";
+  json += "\"wifi\":{";
+  json += "\"connected\":" + String(WiFi.isConnected() ? "true" : "false") + ",";
+  json += "\"ssid\":\"" + WiFi.SSID() + "\",";
+  json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+  json += "\"rssi\":" + String(WiFi.RSSI()) + ",";
+  json += "\"channel\":" + String(WiFi.channel()) + "";
+  json += "},";
+  json += "\"power\":{";
+  json += "\"powered\":" + String(isPowered ? "true" : "false") + ",";
+  json += "\"deep_sleep\":" + String(powerLossDetected ? "true" : "false") + ",";
+  json += "\"last_ip\":\"" + String(lastIP) + "\"";
+  json += "},";
+  json += "\"server\":{";
+  json += "\"ngrok_url\":\"" + String(currentServer) + "\",";
+  json += "\"poll_interval_ms\":" + String(POLL_INTERVAL_MS) + "";
+  json += "}";
+  json += "}";
+
+  strncpy(message, json.c_str(), MAXSTRARGLEN - 1);
   setSuccess(message);
 }

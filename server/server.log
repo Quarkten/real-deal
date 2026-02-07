@@ -1,0 +1,19 @@
+
+> server@1.0.0 start
+> node index.mjs
+
+node:fs:1597
+  const result = binding.readdir(
+                         ^
+
+Error: ENOENT: no such file or directory, scandir '/app/server/images'
+    at Object.readdirSync (node:fs:1597:26)
+    at images (file:///app/server/routes/images.mjs:11:21)
+    at main (file:///app/server/index.mjs:51:21) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'scandir',
+  path: '/app/server/images'
+}
+
+Node.js v22.22.0
