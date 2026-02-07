@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TI-32 Device Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        h1 { color: #1c1e21; margin-top: 0; }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .ngrok-group {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .logs-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            height: 400px;
+            overflow-y: auto;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+        .log-time { color: #569cd6; margin-right: 10px; }
+        .log-msg { word-break: break-all; }
+
+        .status-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 8px;
+        }
+        .status-card h3 { margin-top: 0; font-size: 1.1em; color: #495057; }
+        .status-card p { margin: 5px 0; font-size: 0.9em; }
+
+        .scan-results {
+            margin-top: 20px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .scan-results th, .scan-results td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        .scan-results th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TI-32 ESP32-CAM Dashboard</h1>
+
+        <div id="statusPanel" class="status-panel">
+            <!-- Status will be populated here -->
+            <p>Loading device status...</p>
+        </div>
+
+        <div class="controls">
+            <button onclick="sendCommand('SCAN_NETWORKS')">Scan WiFi</button>
+            <button onclick="refreshStatus()">Check Status</button>
+            <div class="ngrok-group">
+                <input type="text" id="ngrokInput" placeholder="https://your-url.ngrok-free.app">
+                <button onclick="updateNgrok()">Update Ngrok</button>
+            </div>
+        </div>
+
+        <div id="scanResultsContainer"></div>
+
+        <div class="logs-container" id="logs">
+            <!-- Logs will be populated here -->
+        </div>
+    </div>
+
+    <script>
+        async function fetchLogs() {
+            try {
+                const response = await fetch('/esp32/logs');
+                const data = await response.json();
+                const logsDiv = document.getElementById('logs');
+                logsDiv.innerHTML = '';
+                data.logs.forEach(log => {
+                    const entry = document.createElement('div');
+                    entry.className = 'log-entry';
+                    const time = new Date(log.timestamp).toLocaleTimeString();
+                    entry.innerHTML = `<span class="log-time">[${time}]</span><span class="log-msg">${log.message}</span>`;
+                    logsDiv.appendChild(entry);
+                });
+            } catch (err) {
+                console.error("Failed to fetch logs", err);
+            }
+        }
+
+        async function sendCommand(cmd) {
+            try {
+                const response = await fetch('/esp32/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmd })
+                });
+                const data = await response.json();
+                console.log("Command queued", data);
+            } catch (err) {
+                alert("Failed to queue command");
+            }
+        }
+
+        async function refreshStatus() {
+            try {
+                // We use the waiting endpoint for direct feedback
+                const response = await fetch('/esp32/status');
+                const data = await response.json();
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                updateStatusUI(data.data);
+            } catch (err) {
+                console.error("Failed to refresh status", err);
+            }
+        }
+
+        function updateStatusUI(data) {
+            const panel = document.getElementById('statusPanel');
+            if (!data || !data.device) return;
+
+            panel.innerHTML = `
+                <div class="status-card">
+                    <h3>Device</h3>
+                    <p>Uptime: ${data.device.uptime_formatted}</p>
+                    <p>Heap: ${data.device.free_heap} bytes</p>
+                    <p>Boots: ${data.device.boot_count}</p>
+                </div>
+                <div class="status-card">
+                    <h3>WiFi</h3>
+                    <p>SSID: ${data.wifi.ssid || 'N/A'}</p>
+                    <p>IP: ${data.wifi.ip}</p>
+                    <p>RSSI: ${data.wifi.rssi} dBm</p>
+                </div>
+                <div class="status-card">
+                    <h3>Server</h3>
+                    <p>Ngrok: ${data.server.ngrok_url}</p>
+                    <p>Interval: ${data.server.poll_interval_ms}ms</p>
+                </div>
+            `;
+        }
+
+        async function updateNgrok() {
+            const url = document.getElementById('ngrokInput').value;
+            if (!url) return alert("Please enter a URL");
+
+            try {
+                const response = await fetch('/esp32/ngrok/set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await response.json();
+                alert(data.message);
+            } catch (err) {
+                alert("Failed to update Ngrok");
+            }
+        }
+
+        // Auto-refresh logs every 3 seconds
+        setInterval(fetchLogs, 3000);
+        fetchLogs();
+
+        // Initial status check
+        // Note: this might time out if ESP32 is not polling yet
+        // refreshStatus();
+    </script>
+</body>
+</html>

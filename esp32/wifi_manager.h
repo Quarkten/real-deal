@@ -90,6 +90,54 @@ public:
     return networkList;
   }
 
+  // Scan available WiFi networks and return detailed JSON
+  String scanNetworksDetailed() {
+    Serial.println("[WiFiManager] Starting detailed WiFi scan...");
+
+    int n = WiFi.scanNetworks();
+    int count = min(n, MAX_NETWORKS);
+
+    String json = "{\"networks\":[";
+
+    for (int i = 0; i < count; i++) {
+      if (i > 0) json += ",";
+
+      json += "{";
+      json += "\"ssid\":\"" + WiFi.SSID(i) + "\",";
+      json += "\"rssi\":" + String(WiFi.RSSI(i)) + ",";
+      json += "\"channel\":" + String(WiFi.channel(i)) + ",";
+      json += "\"encryption\":\"" + getEncryptionType(WiFi.encryptionType(i)) + "\"";
+      json += "}";
+    }
+
+    json += "],\"count\":" + String(count) + "}";
+
+    Serial.print("[WiFiManager] Found ");
+    Serial.print(count);
+    Serial.println(" networks (detailed)");
+
+    return json;
+  }
+
+  String getEncryptionType(wifi_auth_mode_t encryptionType) {
+    switch (encryptionType) {
+      case WIFI_AUTH_OPEN:
+        return "Open";
+      case WIFI_AUTH_WEP:
+        return "WEP";
+      case WIFI_AUTH_WPA_PSK:
+        return "WPA";
+      case WIFI_AUTH_WPA2_PSK:
+        return "WPA2";
+      case WIFI_AUTH_WPA_WPA2_PSK:
+        return "WPA/WPA2";
+      case WIFI_AUTH_WPA3_PSK:
+        return "WPA3";
+      default:
+        return "Unknown";
+    }
+  }
+
   // Get previously scanned network list
   String getLastScannedNetworks() {
     String list = "";

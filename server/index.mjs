@@ -3,10 +3,17 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import morgan from "morgan";
 import dot from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import { chatgpt } from "./routes/chatgpt.mjs";
 import { images } from "./routes/images.mjs";
 import { chat } from "./routes/chat.mjs";
 import { programs } from "./routes/programs.mjs";
+import { esp32Routes } from "./routes/esp32.mjs";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dot.config();
 
 async function main() {
@@ -19,6 +26,7 @@ async function main() {
   const app = express();
   app.use(morgan("dev"));
   app.use(cors("*"));
+  app.use(express.static(path.join(__dirname, "public")));
   app.use(
     bodyParser.raw({
       type: "image/jpg",
@@ -41,6 +49,9 @@ async function main() {
 
   // Images
   app.use("/image", images());
+
+  // ESP32 Mailbox
+  app.use("/esp32", esp32Routes());
 
   app.listen(port, () => {
     console.log(`listening on ${port}`);
