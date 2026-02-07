@@ -11,6 +11,8 @@
 #define CMD_SAVE_WIFI        17
 #define CMD_GET_NGROK        18
 #define CMD_SET_NGROK        19
+#define CMD_SET_TEXT_KEY     30
+#define CMD_SET_IMAGE_KEY    31
 
 // ============================================================================
 // NVS (Non-Volatile Storage) Configuration
