@@ -2,9 +2,11 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import _ from "lodash";
+import { getKeyManager } from "../keyManager.mjs";
 
 export function images() {
   const router = express.Router();
+  const km = getKeyManager();
 
   const imageDir = path.join(process.cwd(), "images");
 
@@ -84,7 +86,8 @@ export function images() {
 
     // Placeholder for AI processing logic
     // Integrate with AI processing engine here
-    console.log("Image saved and ready for AI processing:", imageName);
+    const apiKey = km.getImageKey();
+    console.log("Image saved and ready for AI processing:", imageName, "using API Key:", apiKey ? "YES" : "NO");
 
     res.status(200).send("Image uploaded and processed successfully");
   });

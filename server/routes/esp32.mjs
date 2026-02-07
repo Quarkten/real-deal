@@ -1,7 +1,9 @@
 import express from "express";
+import { getKeyManager } from "../keyManager.mjs";
 
 export function esp32Routes() {
   const router = express.Router();
+  const km = getKeyManager();
 
   // In-memory state
   let pendingCommand = null;
@@ -23,10 +25,10 @@ export function esp32Routes() {
     console.log(`[Device Log] ${message}`);
   }
 
+  // Helper to wait for result
   async function waitForResult() {
     return new Promise((resolve) => {
       const start = Date.now();
-      const checkInterval = 500;
       const interval = setInterval(() => {
         if (commandResult) {
           clearInterval(interval);
@@ -37,12 +39,8 @@ export function esp32Routes() {
           clearInterval(interval);
           resolve({ error: "Command timed out" });
         }
-      }, checkInterval);
-      
-      // Ensure cleanup on promise rejection
-      return () => clearInterval(interval);
+      }, 500);
     });
-  }
   }
 
   // --- Device-Facing Endpoints ---
@@ -120,6 +118,50 @@ export function esp32Routes() {
     // Given the prompt, I'll stick to what was asked.
 
     res.json({ success: true, message: "Ngrok update command queued" });
+  });
+
+  // --- New Key Update Endpoints for ESP32 ---
+
+  router.post("/set-text-key", express.json(), (req, res) => {
+    const { key } = req.body;
+    if (!key) return res.status(400).send("No key provided");
+    km.setTextKey(key);
+    addLog("Text API Key updated via ESP32");
+    res.json({ success: true });
+  });
+
+  router.post("/set-image-key", express.json(), (req, res) => {
+    const { key } = req.body;
+    if (!key) return res.status(400).send("No key provided");
+    km.setImageKey(key);
+    addLog("Image API Key updated via ESP32");
+    res.json({ success: true });
+  });
+
+  // --- UI-Facing Key Update (Queues for ESP32 or updates directly) ---
+  // The user asked for ESP32 -> Server, but usually the flow is Calculator -> ESP32 -> Server.
+  // If we want UI -> Server, it should update km directly.
+
+  router.post("/text-key/set", express.json(), (req, res) => {
+    const { key } = req.body;
+    if (!key) return res.status(400).send("No key provided");
+
+    addLog(`Requested Text Key update to: ${key.substring(0, 5)}...`);
+    // Queue for ESP32 to notify it if needed, but the server is the primary consumer.
+    // However, the instructions say: "The ESP32 makes a POST request to the Node.js server to update the information."
+    // So the source of truth for the KEY can be the server.
+
+    pendingCommand = `SET_TEXT_KEY ${key}`;
+    res.json({ success: true, message: "Text Key update command queued" });
+  });
+
+  router.post("/image-key/set", express.json(), (req, res) => {
+    const { key } = req.body;
+    if (!key) return res.status(400).send("No key provided");
+
+    addLog(`Requested Image Key update to: ${key.substring(0, 5)}...`);
+    pendingCommand = `SET_IMAGE_KEY ${key}`;
+    res.json({ success: true, message: "Image Key update command queued" });
   });
 
   return router;

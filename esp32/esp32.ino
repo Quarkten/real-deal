@@ -138,6 +138,8 @@ void connect_wifi();
 void save_wifi();
 void get_ngrok();
 void set_ngrok();
+void set_text_key();
+void set_image_key();
 void get_ip_address();
 void get_power_status();
 void get_status();
@@ -171,11 +173,13 @@ struct Command commands[] = {
   { 19, "set_ngrok", 1, set_ngrok, false },
   { 20, "get_ip_address", 0, get_ip_address, false },
   { 21, "get_power_status", 0, get_power_status, false },
-  { 22, "get_status", 0, get_status, false }
+  { 22, "get_status", 0, get_status, false },
+  { 30, "set_text_key", 1, set_text_key, false },
+  { 31, "set_image_key", 1, set_image_key, false }
 };
 
 constexpr int NUMCOMMANDS = sizeof(commands) / sizeof(struct Command);
-constexpr int MAXCOMMAND = 22;
+constexpr int MAXCOMMAND = 31;
 
 uint8_t header[MAXHDRLEN];
 uint8_t data[MAXDATALEN];
@@ -414,6 +418,20 @@ void pollServer() {
       currentArg = 1;
       set_ngrok();
       String responseJson = String("{\"command\":\"set_ngrok\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
+      postResult(responseJson);
+    } else if (payload.startsWith("SET_TEXT_KEY ")) {
+      String newKey = payload.substring(13);
+      strncpy(strArgs[0], newKey.c_str(), MAXSTRARGLEN - 1);
+      currentArg = 1;
+      set_text_key();
+      String responseJson = String("{\"command\":\"set_text_key\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
+      postResult(responseJson);
+    } else if (payload.startsWith("SET_IMAGE_KEY ")) {
+      String newKey = payload.substring(14);
+      strncpy(strArgs[0], newKey.c_str(), MAXSTRARGLEN - 1);
+      currentArg = 1;
+      set_image_key();
+      String responseJson = String("{\"command\":\"set_image_key\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
       postResult(responseJson);
     }
   }
@@ -1130,6 +1148,66 @@ void set_ngrok() {
   Serial.println(currentServer);
   
   setSuccess("Ngrok URL updated");
+}
+
+void set_text_key() {
+  Serial.println("[CMD] set_text_key");
+  const char* key = strArgs[0];
+
+  #ifdef SECURE
+    WiFiClientSecure client;
+    client.setInsecure();
+  #else
+    WiFiClient client;
+  #endif
+  HTTPClient http;
+  http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+
+  auto url = String(currentServer) + "/esp32/set-text-key";
+  http.begin(client, url);
+  http.addHeader("Content-Type", "application/json");
+
+  String json = "{\"key\":\"";
+  json += key;
+  json += "\"}";
+
+  int httpResponseCode = http.POST(json);
+  if (httpResponseCode == 200) {
+    setSuccess("Text API Key updated on server");
+  } else {
+    setError("Failed to update Text API Key on server");
+  }
+  http.end();
+}
+
+void set_image_key() {
+  Serial.println("[CMD] set_image_key");
+  const char* key = strArgs[0];
+
+  #ifdef SECURE
+    WiFiClientSecure client;
+    client.setInsecure();
+  #else
+    WiFiClient client;
+  #endif
+  HTTPClient http;
+  http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+
+  auto url = String(currentServer) + "/esp32/set-image-key";
+  http.begin(client, url);
+  http.addHeader("Content-Type", "application/json");
+
+  String json = "{\"key\":\"";
+  json += key;
+  json += "\"}";
+
+  int httpResponseCode = http.POST(json);
+  if (httpResponseCode == 200) {
+    setSuccess("Image API Key updated on server");
+  } else {
+    setError("Failed to update Image API Key on server");
+  }
+  http.end();
 }
 
 // ============================================================================

@@ -120,6 +120,14 @@
                 <input type="text" id="ngrokInput" placeholder="https://your-url.ngrok-free.app">
                 <button onclick="updateNgrok()">Update Ngrok</button>
             </div>
+            <div class="ngrok-group">
+                <input type="text" id="textKeyInput" placeholder="New Text API Key">
+                <button onclick="updateTextKey()">Update Text Key</button>
+            </div>
+            <div class="ngrok-group">
+                <input type="text" id="imageKeyInput" placeholder="New Image API Key">
+                <button onclick="updateImageKey()">Update Image Key</button>
+            </div>
         </div>
 
         <div id="scanResultsContainer"></div>
@@ -216,6 +224,38 @@
                 alert(data.message);
             } catch (err) {
                 alert("Failed to update Ngrok");
+            }
+        }
+
+        async function updateTextKey() {
+            const key = document.getElementById('textKeyInput').value;
+            if (!key) return alert("Please enter a key");
+            try {
+                const response = await fetch('/esp32/text-key/set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key })
+                });
+                const data = await response.json();
+                alert(data.message);
+            } catch (err) {
+                alert("Failed to update Text Key");
+            }
+        }
+
+        async function updateImageKey() {
+            const key = document.getElementById('imageKeyInput').value;
+            if (!key) return alert("Please enter a key");
+            try {
+                const response = await fetch('/esp32/image-key/set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key })
+                });
+                const data = await response.json();
+                alert(data.message);
+            } catch (err) {
+                alert("Failed to update Image Key");
             }
         }
 

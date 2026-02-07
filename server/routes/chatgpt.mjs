@@ -2,17 +2,19 @@ import express from "express";
 import openai from "openai";
 import i264 from "image-to-base64";
 import jimp from "jimp";
+import { getKeyManager } from "../keyManager.mjs";
 
 export async function chatgpt() {
   const routes = express.Router();
+  const km = getKeyManager();
 
-  // Configure Client for OpenRouter
-  const gpt = new openai.OpenAI({
+  // Helper to get fresh client with latest key
+  const getGptClient = () => new openai.OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
-    apiKey: process.env.OPENROUTER_API_KEY, // Make sure to add this to your .env file
+    apiKey: km.getTextKey(),
     defaultHeaders: {
-      "HTTP-Referer": "https://github.com/chromalock/TI-32", // Optional: Your site URL
-      "X-Title": "TI-32 Calculator Mod", // Optional: Your site name
+      "HTTP-Referer": "https://github.com/chromalock/TI-32",
+      "X-Title": "TI-32 Calculator Mod",
     },
   });
 
@@ -25,7 +27,7 @@ export async function chatgpt() {
     }
 
     try {
-      const result = await gpt.chat.completions.create({
+      const result = await getGptClient().chat.completions.create({
         messages: [
           {
             role: "system",
@@ -81,7 +83,7 @@ export async function chatgpt() {
 
       console.log("prompt:", question);
 
-      const result = await gpt.chat.completions.create({
+      const result = await getGptClient().chat.completions.create({
         messages: [
           {
             role: "system",

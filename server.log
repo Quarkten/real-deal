@@ -1,7 +1,0 @@
-
-> ti-32@1.0.0 start
-> node server/index.mjs
-
-listening on 8080
-[0mGET /esp32.html [32m200[0m 9.404 ms - 7721[0m
-Terminated
