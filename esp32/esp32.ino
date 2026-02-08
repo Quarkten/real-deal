@@ -925,18 +925,18 @@ void snap() {
 
   auto url = String(currentServer) + "/image/upload";
   http.begin(client, url);
-  http.addHeader("Content-Type", "image/jpeg");
+  http.addHeader("Content-Type", "image/jpg");
 
   int httpResponseCode = http.POST(fb->buf, fb->len);
 
   if (httpResponseCode == 200) {
-    setSuccess("Image captured successfully");
+    setSuccess("Image captured and uploaded");
   } else {
     String err = "Upload failed: ";
     err += httpResponseCode;
     setError(err.c_str());
   }
-  
+
   http.end();
   // Return the frame buffer
   esp_camera_fb_return(fb);
@@ -965,16 +965,18 @@ void solve() {
   HTTPClient http;
   http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
 
-  auto url = String(currentServer) + "/image/upload";
+  auto url = String(currentServer) + "/gpt/solve";
   http.begin(client, url);
-  http.addHeader("Content-Type", "image/jpeg");
+  http.addHeader("Content-Type", "image/jpg");
 
   int httpResponseCode = http.POST(fb->buf, fb->len);
 
   if (httpResponseCode == 200) {
-    setSuccess("Image solved successfully");
+    String payload = http.getString();
+    strncpy(message, payload.c_str(), MAXSTRARGLEN - 1);
+    setSuccess(message);
   } else {
-    String err = "Upload failed: ";
+    String err = "Solve failed: ";
     err += httpResponseCode;
     setError(err.c_str());
   }
