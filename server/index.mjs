@@ -44,7 +44,7 @@ async function main() {
   app.use(bodyParser.json({ limit: "10mb" }));
   app.use(
     bodyParser.raw({
-      type: "image/jpeg",
+      type: ["image/jpeg", "image/jpg"],
       limit: "10mb",
     })
   );

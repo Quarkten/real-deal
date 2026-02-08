@@ -104,7 +104,7 @@ export async function chatgpt() {
       const contentType = req.headers["content-type"];
       console.log("content-type:", contentType);
 
-      if (contentType !== "image/jpg") {
+      if (contentType !== "image/jpg" && contentType !== "image/jpeg") {
         res.status(400);
         res.send(`bad content-type: ${contentType}`);
         return; 
@@ -139,7 +139,7 @@ export async function chatgpt() {
           {
             role: "system",
             content:
-              "You are a helpful math tutor, specifically designed to help with basic arithmetic, but also can answer a broad range of math questions from uploaded images. You should provide answers as succinctly as possible, and always under 100 characters. Be as accurate as possible.",
+              "You are a helpful math tutor, specifically designed to help with basic arithmetic, but also can answer a broad range of math questions from uploaded images. You should provide answers as succinctly as possible, and always under 100 characters. Use only uppercase letters. Be as accurate as possible.",
           },
           {
             role: "user",
@@ -158,13 +158,12 @@ export async function chatgpt() {
             ],
           },
         ],
-        // Note: The 'kat-coder-pro' model likely does not support images.
-        // We use a vision-capable model supported by OpenRouter here.
-        // You can switch this to "google/gemini-2.0-flash-exp:free" for a free vision alternative.
-        model: "openai/gpt-4o", 
+        // Use a vision-capable model. Defaulting to free Gemini if not specified.
+        model: process.env.IMAGE_AI_MODEL || "google/gemini-2.0-flash-exp:free",
       });
 
-      res.send(result.choices[0]?.message?.content ?? "no response");
+      const aiResponse = result.choices[0]?.message?.content ?? "NO RESPONSE";
+      res.send(aiResponse.toUpperCase());
     } catch (e) {
       console.error(e);
       res.sendStatus(500);

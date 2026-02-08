@@ -980,6 +980,7 @@ void solve() {
 
   http.end();
   
+  http.end();
   // Return the frame buffer
   esp_camera_fb_return(fb);
   #else
