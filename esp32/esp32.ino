@@ -475,12 +475,8 @@ void pollServer() {
       postResult(responseJson);
     } else if (payload == "SNAP") {
       snap();
-      String responseJson = String("{\"command\":\"snap\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
-      postResult(responseJson);
     } else if (payload == "SOLVE") {
       solve();
-      String responseJson = String("{\"command\":\"solve\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
-      postResult(responseJson);
     }
   }
   http.end();
@@ -928,16 +924,17 @@ void snap() {
   http.addHeader("Content-Type", "image/jpg");
 
   int httpResponseCode = http.POST(fb->buf, fb->len);
+  Serial.print("Image Upload Result: ");
+  Serial.println(httpResponseCode);
 
   if (httpResponseCode == 200) {
     setSuccess("Image captured and uploaded");
   } else {
-    String err = "Upload failed: ";
-    err += httpResponseCode;
-    setError(err.c_str());
+    setError("Failed to upload image");
   }
 
   http.end();
+  
   // Return the frame buffer
   esp_camera_fb_return(fb);
   #else
@@ -955,7 +952,7 @@ void solve() {
     return;
   }
   
-  // Send to server for processing
+  // Send image to solve endpoint
   #ifdef SECURE
     WiFiClientSecure client;
     client.setInsecure();
@@ -970,16 +967,18 @@ void solve() {
   http.addHeader("Content-Type", "image/jpg");
 
   int httpResponseCode = http.POST(fb->buf, fb->len);
+  Serial.print("Solve Request Result: ");
+  Serial.println(httpResponseCode);
 
   if (httpResponseCode == 200) {
     String payload = http.getString();
     strncpy(message, payload.c_str(), MAXSTRARGLEN - 1);
     setSuccess(message);
   } else {
-    String err = "Solve failed: ";
-    err += httpResponseCode;
-    setError(err.c_str());
+    setError("Failed to solve image");
   }
+
+  http.end();
   
   http.end();
   // Return the frame buffer
