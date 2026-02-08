@@ -433,6 +433,10 @@ void pollServer() {
       set_image_key();
       String responseJson = String("{\"command\":\"set_image_key\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
       postResult(responseJson);
+    } else if (payload == "SNAP") {
+      snap();
+    } else if (payload == "SOLVE") {
+      solve();
     }
   }
   http.end();
@@ -789,9 +793,31 @@ void snap() {
   // Manage context for image input
   manageContext("Image captured", true);
   
-  // Compress and send image
-  // Placeholder for image compression and transmission logic
-  setSuccess("Image captured successfully");
+  // Send image to server
+  #ifdef SECURE
+    WiFiClientSecure client;
+    client.setInsecure();
+  #else
+    WiFiClient client;
+  #endif
+  HTTPClient http;
+  http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+
+  auto url = String(currentServer) + "/image/upload";
+  http.begin(client, url);
+  http.addHeader("Content-Type", "image/jpg");
+
+  int httpResponseCode = http.POST(fb->buf, fb->len);
+  Serial.print("Image Upload Result: ");
+  Serial.println(httpResponseCode);
+
+  if (httpResponseCode == 200) {
+    setSuccess("Image captured and uploaded");
+  } else {
+    setError("Failed to upload image");
+  }
+
+  http.end();
   
   // Return the frame buffer
   esp_camera_fb_return(fb);
@@ -810,8 +836,33 @@ void solve() {
     return;
   }
   
-  // Placeholder for image solving logic
-  setSuccess("Image solved successfully");
+  // Send image to solve endpoint
+  #ifdef SECURE
+    WiFiClientSecure client;
+    client.setInsecure();
+  #else
+    WiFiClient client;
+  #endif
+  HTTPClient http;
+  http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+
+  auto url = String(currentServer) + "/gpt/solve";
+  http.begin(client, url);
+  http.addHeader("Content-Type", "image/jpg");
+
+  int httpResponseCode = http.POST(fb->buf, fb->len);
+  Serial.print("Solve Request Result: ");
+  Serial.println(httpResponseCode);
+
+  if (httpResponseCode == 200) {
+    String payload = http.getString();
+    strncpy(message, payload.c_str(), MAXSTRARGLEN - 1);
+    setSuccess(message);
+  } else {
+    setError("Failed to solve image");
+  }
+
+  http.end();
   
   // Return the frame buffer
   esp_camera_fb_return(fb);
