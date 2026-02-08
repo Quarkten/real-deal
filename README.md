@@ -44,6 +44,7 @@ graph LR
 | 📊 **Device Dashboard** | Chat-style UI for real-time logging and control. |
 | 📡 **Remote WiFi Scan** | Scan for networks around the ESP32 from your browser. |
 | 🤖 **AI Integration** | Query ChatGPT/Gemini directly from your calculator. |
+| 👁️ **Vision AI** | Capture images and ask AI to describe them from your calculator. |
 | 📷 **Remote Camera** | Trigger camera captures and view results remotely. |
 | 📂 **Smart Organization** | Clean project structure with dedicated `cli/`, `build/`, and `docs/` folders. |
 
@@ -111,6 +112,7 @@ The ESP32 supports the following Command IDs sent via `Send(ID,C)`:
 | 20 | `get_ip_address`| Returns the ESP32's local IP address. |
 | 21 | `get_power_status`| Returns JSON power/boot status. |
 | 22 | `get_status` | Returns comprehensive device status (Uptime, Heap, etc.) |
+| 23 | `get_gpt_chunk` | Fetches a specific chunk (page) of a long AI response. |
 
 > **Note**: Polling is automatically suspended while the ESP32 is busy communicating with the calculator to ensure timing accuracy.
 

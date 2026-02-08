@@ -47,6 +47,57 @@ export async function chatgpt() {
     }
   });
 
+  // vision AI endpoint
+  routes.post("/vision", async (req, res) => {
+    try {
+      const { image, question } = req.body;
+      if (!image) {
+        return res.status(400).send("No image provided");
+      }
+
+      const visionModel = process.env.IMAGE_AI_MODEL || "google/gemini-2.0-flash-exp:free";
+      const visionApiKey = km.getImageKey();
+
+      const visionClient = new openai.OpenAI({
+        baseURL: "https://openrouter.ai/api/v1",
+        apiKey: visionApiKey,
+        defaultHeaders: {
+          "HTTP-Referer": "https://github.com/chromalock/TI-32",
+          "X-Title": "TI-32 Calculator Mod",
+        },
+      });
+
+      const response = await visionClient.chat.completions.create({
+        model: visionModel,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: question || "DESCRIBE WHAT YOU SEE IN THIS IMAGE. KEEP IT UNDER 100 CHARS AND USE UPPERCASE.",
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${image}`,
+                  detail: "auto",
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 200,
+      });
+
+      const aiResponse = response.choices[0]?.message?.content ?? "NO RESPONSE";
+      res.status(200).send(aiResponse.toUpperCase());
+    } catch (error) {
+      console.error("Error in vision endpoint:", error);
+      res.status(500).send("ERROR PROCESSING IMAGE");
+    }
+  });
+
   // solve a math equation from an image.
   routes.post("/solve", async (req, res) => {
     try {

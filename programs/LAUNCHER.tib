@@ -75,6 +75,16 @@ Pause
 Goto Q1
 
 Lbl G0:
+ClrHome
+Disp "GPT MODE"
+Disp "1: TEXT QUESTION"
+Disp "2: IMAGE + QUESTION"
+Input "CHOICE (1/2):",M
+If M=2:Then
+Goto IMAGEGPT
+End
+
+:; Text mode
 2->C
 Disp "Enter Question:
 Prompt Str0
@@ -85,11 +95,85 @@ Repeat S
 Get(S)
 End
 Get(Str0)
+Goto GPTDISP
+
+Lbl IMAGEGPT
 ClrHome
-ClrDraw
-Output(1,1,Str0)
+Disp "IMAGE GPT MODE"
+Disp "POINT CAMERA"
+Disp "AT OBJECT"
+Disp ""
+Disp "PRESS ENTER TO"
+Disp "CAPTURE"
+Pause
+ClrHome
+Disp "HOLD STILL..."
+Disp "CAPTURING..."
+
+:; First capture the image (Command 7)
+7->C
+Send(C)
+0->S
+Repeat S
+Get(S)
+End
+Get(Str1)
+
+If Str1="Image captured successfully":Then
+ClrHome
+Disp "IMAGE CAPTURED"
+Disp ""
+Disp "ASK QUESTION:"
+Input "QUESTION:",Str0
+
+:; Send to GPT with special prefix
+"!IMAGE:"+Str0->Str2
+2->C
+Send(C)
+Send(Str2)
+0->S
+Repeat S
+Get(S)
+End
+Get(Str0)
+Goto GPTDISP
+Else
+ClrHome
+Disp "CAPTURE FAILED"
+Disp Str1
 Pause 
+End
 Goto Q1
+
+Lbl GPTDISP:
+0->P
+Lbl SCRL:
+ClrHome
+Disp Str0
+Output(8,1,"CLR:EXT L/R:NAV")
+0->K
+Repeat max(K={24,26,45})
+getKey->K
+End
+If K=45:Then:Goto Q1:End
+If K=26:Then
+P+1->P
+23->C:Send(C):Send(P)
+0->S:Repeat S:Get(S):End
+Get(Str1)
+If Str1="":Then
+P-1->P
+Else:Str1->Str0:End
+Goto SCRL
+End
+If K=24:Then
+max(0,P-1)->P
+23->C:Send(C):Send(P)
+0->S:Repeat S:Get(S):End
+Get(Str0)
+Goto SCRL
+End
+Goto SCRL
 
 Lbl S0:
 GridOff
