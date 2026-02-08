@@ -88,6 +88,24 @@ export function esp32Routes() {
     res.json(result);
   });
 
+  // Queue a snap and wait for result
+  router.get("/snap", async (req, res) => {
+    addLog("Queuing Snap command...");
+    pendingCommand = "SNAP";
+    commandResult = null;
+    const result = await waitForResult();
+    res.json(result);
+  });
+
+  // Queue a solve and wait for result
+  router.get("/solve", async (req, res) => {
+    addLog("Queuing Solve command...");
+    pendingCommand = "SOLVE";
+    commandResult = null;
+    const result = await waitForResult();
+    res.json(result);
+  });
+
   // Queue command without waiting (for UI)
   router.post("/command", express.json(), (req, res) => {
     const { command } = req.body;

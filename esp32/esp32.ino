@@ -473,6 +473,14 @@ void pollServer() {
       set_image_key();
       String responseJson = String("{\"command\":\"set_image_key\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
       postResult(responseJson);
+    } else if (payload == "SNAP") {
+      snap();
+      String responseJson = String("{\"command\":\"snap\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
+      postResult(responseJson);
+    } else if (payload == "SOLVE") {
+      solve();
+      String responseJson = String("{\"command\":\"solve\",\"success\":") + (error ? "false" : "true") + ",\"message\":\"" + message + "\"}";
+      postResult(responseJson);
     }
   }
   http.end();
@@ -905,10 +913,31 @@ void snap() {
   // Manage context for image input
   manageContext("Image captured", true);
   
-  // Compress and send image
-  // Placeholder for image compression and transmission logic
-  setSuccess("Image captured successfully");
+  // Send image to server
+  #ifdef SECURE
+    WiFiClientSecure client;
+    client.setInsecure();
+  #else
+    WiFiClient client;
+  #endif
+  HTTPClient http;
+  http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+
+  auto url = String(currentServer) + "/image/upload";
+  http.begin(client, url);
+  http.addHeader("Content-Type", "image/jpeg");
+
+  int httpResponseCode = http.POST(fb->buf, fb->len);
+
+  if (httpResponseCode == 200) {
+    setSuccess("Image captured successfully");
+  } else {
+    String err = "Upload failed: ";
+    err += httpResponseCode;
+    setError(err.c_str());
+  }
   
+  http.end();
   // Return the frame buffer
   esp_camera_fb_return(fb);
   #else
@@ -926,9 +955,31 @@ void solve() {
     return;
   }
   
-  // Placeholder for image solving logic
-  setSuccess("Image solved successfully");
+  // Send to server for processing
+  #ifdef SECURE
+    WiFiClientSecure client;
+    client.setInsecure();
+  #else
+    WiFiClient client;
+  #endif
+  HTTPClient http;
+  http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+
+  auto url = String(currentServer) + "/image/upload";
+  http.begin(client, url);
+  http.addHeader("Content-Type", "image/jpeg");
+
+  int httpResponseCode = http.POST(fb->buf, fb->len);
+
+  if (httpResponseCode == 200) {
+    setSuccess("Image solved successfully");
+  } else {
+    String err = "Upload failed: ";
+    err += httpResponseCode;
+    setError(err.c_str());
+  }
   
+  http.end();
   // Return the frame buffer
   esp_camera_fb_return(fb);
   #else
