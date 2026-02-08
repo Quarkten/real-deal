@@ -13,6 +13,7 @@
     "build:images": "bash build/genfiles.sh",
     "build:launcher": "bash build/preplauncher.sh",
     "test:multimodal": "node tests/test_multimodal.mjs",
+    "test:vision": "node tests/test_vision.mjs",
     "test:scripts": "node tests/test_scripts.mjs"
   },
   "dependencies": {

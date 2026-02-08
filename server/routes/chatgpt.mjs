@@ -47,32 +47,67 @@ export async function chatgpt() {
     }
   });
 
+  // vision AI endpoint
+  routes.post("/vision", async (req, res) => {
+    try {
+      const { image, question } = req.body;
+      if (!image) {
+        return res.status(400).send("No image provided");
+      }
+
+      const visionModel = process.env.IMAGE_AI_MODEL || "google/gemini-2.0-flash-exp:free";
+      const visionApiKey = km.getImageKey();
+
+      const visionClient = new openai.OpenAI({
+        baseURL: "https://openrouter.ai/api/v1",
+        apiKey: visionApiKey,
+        defaultHeaders: {
+          "HTTP-Referer": "https://github.com/chromalock/TI-32",
+          "X-Title": "TI-32 Calculator Mod",
+        },
+      });
+
+      const response = await visionClient.chat.completions.create({
+        model: visionModel,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: question || "DESCRIBE WHAT YOU SEE IN THIS IMAGE. KEEP IT UNDER 100 CHARS AND USE UPPERCASE.",
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${image}`,
+                  detail: "auto",
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 200,
+      });
+
+      const aiResponse = response.choices[0]?.message?.content ?? "NO RESPONSE";
+      res.status(200).send(aiResponse.toUpperCase());
+    } catch (error) {
+      console.error("Error in vision endpoint:", error);
+      res.status(500).send("ERROR PROCESSING IMAGE");
+    }
+  });
+
   // solve a math equation from an image.
   routes.post("/solve", async (req, res) => {
     try {
-      const contentType = req.headers["content-type"];
-      console.log("content-type:", contentType);
-
-      if (contentType !== "image/jpg") {
+      if (!req.is("image/jpeg") && !req.is("image/jpg")) {
         res.status(400);
-        res.send(`bad content-type: ${contentType}`);
-        return; 
+        res.send(`bad content-type: ${req.headers["content-type"]}`);
+        return;
       }
 
-      const image_data = await new Promise((resolve, reject) => {
-        jimp.read(req.body, (err, value) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          resolve(value);
-        });
-      });
-
-      const image_path = "./to_solve.jpg";
-
-      await image_data.writeAsync(image_path);
-      const encoded_image = await i264(image_path);
+      const encoded_image = req.body.toString("base64");
       console.log("Encoded Image: ", encoded_image.length, "bytes");
 
       const question_number = req.query.n;
@@ -88,7 +123,7 @@ export async function chatgpt() {
           {
             role: "system",
             content:
-              "You are a helpful math tutor, specifically designed to help with basic arithmetic, but also can answer a broad range of math questions from uploaded images. You should provide answers as succinctly as possible, and always under 100 characters. Be as accurate as possible.",
+              "You are a helpful math tutor, specifically designed to help with basic arithmetic, but also can answer a broad range of math questions from uploaded images. You should provide answers as succinctly as possible, and always under 100 characters. Use only uppercase letters. Be as accurate as possible.",
           },
           {
             role: "user",
@@ -107,13 +142,12 @@ export async function chatgpt() {
             ],
           },
         ],
-        // Note: The 'kat-coder-pro' model likely does not support images.
-        // We use a vision-capable model supported by OpenRouter here.
-        // You can switch this to "google/gemini-2.0-flash-exp:free" for a free vision alternative.
-        model: "openai/gpt-4o", 
+        // Use a vision-capable model. Defaulting to free Gemini if not specified.
+        model: process.env.IMAGE_AI_MODEL || "google/gemini-2.0-flash-exp:free",
       });
 
-      res.send(result.choices[0]?.message?.content ?? "no response");
+      const aiResponse = result.choices[0]?.message?.content ?? "NO RESPONSE";
+      res.send(aiResponse.toUpperCase());
     } catch (e) {
       console.error(e);
       res.sendStatus(500);
