@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "fs";
 import cors from "cors";
 import bodyParser from "body-parser";
 import morgan from "morgan";
@@ -39,9 +40,10 @@ async function main() {
   app.use(morgan("dev"));
   app.use(cors("*"));
   app.use(express.static(path.join(__dirname, "public")));
+  app.use(bodyParser.json({ limit: "10mb" }));
   app.use(
     bodyParser.raw({
-      type: "image/jpg",
+      type: "image/jpeg",
       limit: "10mb",
     })
   );

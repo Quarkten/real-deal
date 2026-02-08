@@ -5,7 +5,7 @@ let keys = {
 
 export function initKeyManager() {
   keys.textKey = process.env.OPENROUTER_API_KEY || "";
-  keys.imageKey = process.env.IMAGE_API_KEY || process.env.REPLICATE_API_TOKEN || "";
+  keys.imageKey = process.env.IMAGE_OPENROUTER_API_KEY || process.env.IMAGE_API_KEY || process.env.OPENROUTER_API_KEY || process.env.REPLICATE_API_TOKEN || "";
   console.log("[KeyManager] Initialized with keys from environment");
 }
 

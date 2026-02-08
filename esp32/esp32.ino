@@ -143,6 +143,7 @@ void set_image_key();
 void get_ip_address();
 void get_power_status();
 void get_status();
+void get_gpt_chunk();
 
 struct Command {
   int id;
@@ -174,6 +175,7 @@ struct Command commands[] = {
   { 20, "get_ip_address", 0, get_ip_address, false },
   { 21, "get_power_status", 0, get_power_status, false },
   { 22, "get_status", 0, get_status, false },
+  { 23, "get_gpt_chunk", 1, get_gpt_chunk, false },
   { 30, "set_text_key", 1, set_text_key, false },
   { 31, "set_image_key", 1, set_image_key, false }
 };
@@ -194,6 +196,44 @@ void fixStrVar(char* str) {
     }
   }
   str[end] = '\0';
+}
+
+// Base64 encoding function
+const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+String base64_encode(uint8_t* buf, unsigned int len) {
+  String ret = "";
+  int i = 0;
+  int j = 0;
+  uint8_t char_array_3[3];
+  uint8_t char_array_4[4];
+
+  while (len--) {
+    char_array_3[i++] = *(buf++);
+    if (i == 3) {
+      char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+      char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+      char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+      char_array_4[3] = char_array_3[2] & 0x3f;
+
+      for(i = 0; i <4 ; i++) ret += base64_chars[char_array_4[i]];
+      i = 0;
+    }
+  }
+
+  if (i) {
+    for(j = i; j < 3; j++) char_array_3[j] = '\0';
+
+    char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+    char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+    char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+    char_array_4[3] = char_array_3[2] & 0x3f;
+
+    for (j = 0; j < i + 1; j++) ret += base64_chars[char_array_4[j]];
+    while(i++ < 3) ret += '=';
+  }
+
+  return ret;
 }
 
 int onReceived(uint8_t type, enum Endpoint model, int datalen);
@@ -702,6 +742,75 @@ void gpt() {
   Serial.print("prompt: ");
   Serial.println(prompt);
 
+  // Check if this is an image request (starts with "!IMAGE:")
+  if (strncmp(prompt, "!IMAGE:", 7) == 0) {
+    Serial.println("[GPT] Image mode request detected");
+
+    // Extract the actual question (skip "!IMAGE:")
+    const char* imageQuestion = prompt + 7;
+
+    #ifdef CAMERA
+    // Capture image from camera
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (!fb) {
+      setError("Camera capture failed");
+      return;
+    }
+
+    // Encode image to Base64
+    String base64Image = base64_encode(fb->buf, fb->len);
+
+    // Send to server's vision endpoint
+    #ifdef SECURE
+    WiFiClientSecure client;
+    client.setInsecure();
+    #else
+    WiFiClient client;
+    #endif
+    HTTPClient http;
+    http.setAuthorization(HTTP_USERNAME, HTTP_PASSWORD);
+
+    String url = String(currentServer) + "/gpt/vision";
+    http.begin(client, url);
+    http.addHeader("Content-Type", "application/json");
+
+    // Create JSON with image and question
+    String json;
+    json.reserve(base64Image.length() + strlen(imageQuestion) + 64);
+    json = "{\"image\":\"";
+    json += base64Image;
+    json += "\",\"question\":\"";
+    json += imageQuestion;
+    json += "\"}";
+
+    Serial.println("Sending image to vision AI...");
+    int httpResponseCode = http.POST(json);
+
+    if (httpResponseCode == 200) {
+      // Store full response in the response buffer for chunked retrieval
+      String responseStr = http.getString();
+      strncpy(response, responseStr.c_str(), MAXHTTPRESPONSELEN - 1);
+      response[MAXHTTPRESPONSELEN - 1] = '\0';
+
+      // Also set the first chunk as the immediate success message
+      strncpy(message, response, MAXSTRARGLEN - 1);
+      message[MAXSTRARGLEN - 1] = '\0';
+      setSuccess(message);
+    } else {
+      String errorMsg = "Vision AI failed: ";
+      errorMsg += httpResponseCode;
+      setError(errorMsg.c_str());
+    }
+
+    http.end();
+    esp_camera_fb_return(fb);
+    #else
+    setError("Camera not supported on this board");
+    #endif
+
+    return;
+  }
+
   // Manage context for text input
   manageContext(prompt, false);
 
@@ -711,6 +820,13 @@ void gpt() {
   if (makeRequest(url, response, MAXHTTPRESPONSELEN, &realsize)) {
     setError("error making request");
     return;
+  }
+
+  // Ensure null termination for scrolling/chunked retrieval
+  if (realsize < MAXHTTPRESPONSELEN) {
+    response[realsize] = '\0';
+  } else {
+    response[MAXHTTPRESPONSELEN - 1] = '\0';
   }
 
   Serial.print("response: ");
@@ -1246,6 +1362,24 @@ void get_power_status() {
   statusJson += "}";
   
   strncpy(message, statusJson.c_str(), MAXSTRARGLEN - 1);
+  setSuccess(message);
+}
+
+void get_gpt_chunk() {
+  Serial.println("[CMD] get_gpt_chunk");
+  int page = (int)realArgs[0];
+  int chunkSize = MAXSTRARGLEN - 1;
+  int start = page * chunkSize;
+  int totalLen = strlen(response);
+
+  if (start >= totalLen) {
+    message[0] = '\0';
+    setSuccess(message);
+    return;
+  }
+
+  strncpy(message, response + start, chunkSize);
+  message[chunkSize] = '\0';
   setSuccess(message);
 }
 
