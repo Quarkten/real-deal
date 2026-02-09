@@ -36,8 +36,8 @@ export async function chatgpt() {
           },
           { role: "user", content: question },
         ],
-        // Using the free model requested
-        model: "kwaipilot/kat-coder-pro:free", 
+        // Using model from environment variable
+        model: process.env.TEXT_AI_MODEL || "google/gemini-2.0-flash-exp:free",
       });
 
       res.send(result.choices[0]?.message?.content ?? "no response");

@@ -5,7 +5,6 @@ import bodyParser from "body-parser";
 import morgan from "morgan";
 import dot from "dotenv";
 import path from "path";
-import fs from "fs";
 import { fileURLToPath } from "url";
 import { chatgpt } from "./routes/chatgpt.mjs";
 import { images } from "./routes/images.mjs";
